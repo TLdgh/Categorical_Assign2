@@ -1,17 +1,31 @@
 ---
 title: "MAT5317 Categorical Assignment 2"
-author: 
-  - Teng Li(7373086)
-  - Lucas() 
-  - Chutong Zhang()
-output: pdf_document
-header-includes: 
-  - \renewcommand{\and}{\\}
+author:
+- Teng Li(7373086)
+- Zhize Lu(300075114)
+- Chutong Zhang(300311325)
+output: bookdown::html_document2
+header-includes:
+- \renewcommand{\and}{\\}
+- \usepackage{float}
+- \floatplacement{figure}{H}
+bibliography: References.bib
+link-citations: yes
 ---
 
+<style type="text/css">
+.title, .author{text-align: center;}
+body{font-size: 12pt;}
+table{font-size: 12pt;}
+h1{font-size: 14pt;}
+h2{font-size: 12pt;}
+</style>
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(plotly)
+library(kableExtra)
 ```
 
 # Introduction

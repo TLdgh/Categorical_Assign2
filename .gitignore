@@ -14,6 +14,7 @@ Categorical_Assign1.Rproj
 # produced vignettes
 *.log
 *.tex
+*.csv
 Figures/*_files/
 Categorical_Assign1_files
 
