@@ -22,7 +22,7 @@ h2{font-size: 12pt;}
 </style>
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 library(tidyverse)
 library(plotly)
 library(kableExtra)
