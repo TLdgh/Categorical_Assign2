@@ -5,18 +5,18 @@
 
 # Session Data files
 .RData
-Categorical_Assign1.html
+Categorical_Assign2.html
 
 # RStudio files
 .Rproj.user/
-Categorical_Assign1.Rproj
+Categorical_Assign2.Rproj
 
 # produced vignettes
 *.log
 *.tex
 *.csv
 Figures/*_files/
-Categorical_Assign1_files
+Categorical_Assign2_files
 
 # knitr and R markdown default cache directories
 *_cache/
