@@ -28,11 +28,23 @@ library(plotly)
 library(kableExtra)
 ```
 
+```{r}
+CCAHS<-read.csv("CCAHS.csv", header = TRUE)
+Covid<-read.csv("Covid.csv", header = TRUE)
+WMortality<-read.csv("WeeklyMortality.csv", header = TRUE)
+ExMortality<-read.csv("ExcessMortality.csv", header = TRUE)
+LongTerm<-read.csv("LongTerm.csv", header = TRUE)
+```
+
 # Introduction
 
 # Method
 
 # Result
+```{r}
+WMortality%>%mutate(Year=year(REF_DATE), Week=substr(REF_DATE,6,10))%>%mutate(Year=factor(Year))%>%filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
+  plot_ly(x=~Week, y=~VALUE, color=~Year,type = "scatter", mode="lines")
+```
 
 # Discussion
 
