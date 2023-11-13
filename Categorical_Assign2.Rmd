@@ -4,7 +4,9 @@ author:
 - Teng Li(7373086)
 - Zhize Lu(300075114)
 - Chutong Zhang(300311325)
-output: bookdown::html_document2
+output: 
+  bookdown::html_document2:
+    toc: true
 header-includes:
 - \renewcommand{\and}{\\}
 - \usepackage{float}
@@ -38,15 +40,44 @@ LongTerm<-read.csv("LongTerm.csv", header = TRUE)
 
 # Introduction
 
+The COVID-19 pandemic, caused by the novel coronavirus SARS-CoV-2, has had an unprecedented impact on global health, economies, and daily life since its emergence in late 2019. As the world fights with the challenges posed by this highly contagious virus, epidemiological data have been continuously gathered and released to the public, driving numerous researches and different approaches in trying to understand its patterns of transmission, to identify vulnerable populations, and to inform public health strategies. Due to the severity of the early stage of the pandemic and its wide impact on global production, data of high quality and accuracy were gathered in the nation through surveys and reports, so we believed that the COVID-19 data sets could be more informative and extensive than other epidemiology data.
+
+In this assignment, we looked into the COVID-19 epidemiology data sets provided by Statistics Canada along with other related data sets. We attempted to answer three major questions in three subsections:
+
+1. We wanted to find if there was a possible relationship between the COVID pandemic and the excess mortality for 2020, 2021 and 2022. Through this question, one might be able to draw insights on whether the virus has had a dangerous impact on the overall public health.
+
+2. We gathered data of COVID-19 long term symptom among Canadian adults. We wanted to draw some conclusions on whether the virus had any impact on the long-term health condition of Canadians.
+
+3. We wanted to measure the relationship between the risk prevalence and some factors like vaccination status, chronic conditions and having or not a direct contact with people etc. By building a statistical model between the response and predictors, it helped us understand what procedures or conditions can affect the prevalence of COVID-19.  
+
 # Method
 
+## Section 1: Mortality
+
+## Section 2: Long-term Impact
+
+## Section 3: Prevalence Modeling
+
 # Result
+
+## Section 1: Mortality
+
+## Section 2: Long-term Impact
+
+## Section 3: Prevalence Modeling
+
 ```{r}
 WMortality%>%mutate(Year=year(REF_DATE), Week=substr(REF_DATE,6,10))%>%mutate(Year=factor(Year))%>%filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
   plot_ly(x=~Week, y=~VALUE, color=~Year,type = "scatter", mode="lines")
 ```
 
 # Discussion
+
+## Section 1: Mortality
+
+## Section 2: Long-term Impact
+
+## Section 3: Prevalence Modeling
 
 # Conclusion
 
