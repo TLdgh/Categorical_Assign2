@@ -57,6 +57,7 @@ In this assignment, we looked into the COVID-19 epidemiology data sets provided 
 
 ## Section 2: Long-term Impact
 
+The data of COVID-19 long term symptom among Canadian adults contain the major variables shown in the following table. We mainly interested in the Measures which is the response variable. The data is grouped by sex and age groups. The value shows the percentage of responses within each specific group.
 ```{r}
 data_dictionary <- data.frame(
   Variable = c("REF_DATE", "GEO", "Measures", "Sex", "Age group","Characteristics", "UOM", "VALUE", "DECIMALS"),
@@ -76,6 +77,7 @@ grouped_data <- LongTerm %>%
   spread(Measures, VALUE)
 ```
 
+As the data of COVID-19 long term symptom among Canadian adults did not contain the population size and population for each groups. We estimate the counts from the data of Weekly number of COVID-19 cases in Canada as of October 28, 2023. From the data of overall COVID-19 cases, we first grouped the data to the similar structure as our Long Term Symptom data. The data of other genders was dropped because that the count is too small comparing to the total population.
 ```{r}
 cleaned_data <- AgeGenderTotal %>%
   select(-rate_per_100000) %>%
@@ -114,11 +116,39 @@ both_sexes_data <- summary_data %>%
 
 final_summary_data <- rbind(summary_data, both_sexes_data)
 final_summary_data <- final_summary_data %>%
-  arrange(gender, age_group)
+  arrange(gender, age_group) %>%
+  rename(Sex = gender, Age.group = age_group)
+
+combined_data <- left_join(grouped_data, final_summary_data, by = c("Sex", "Age.group"))
 ```
 
 ```{r}
+library(broom)
+perform_chi_square <- function(data) {
+  contingency_table <- data %>%
+    select(`Age.group`, `Yes, had long-term symptoms`, count) %>%
+    mutate(No = (100 - `Yes, had long-term symptoms`) * count / 100,
+           Yes = `Yes, had long-term symptoms` * count / 100) %>%
+    select(-`Yes, had long-term symptoms`) %>%
+    group_by(`Age.group`) %>%
+    summarise(Yes = sum(Yes), No = sum(No))
+  
+  chi_square_result <- chisq.test(contingency_table[-1])
+  
+  return(chi_square_result)
+}
 
+results <- list()
+sexes <- c("Males", "Females", "Both sexes")
+for (sex in sexes) {
+  filtered_data <- combined_data %>% filter(Sex == sex)
+  results[[sex]] <- perform_chi_square(filtered_data)
+}
+
+test_results <- lapply(results, tidy) %>% bind_rows() %>% mutate(Sex = sexes)
+test_results <- select(test_results, Sex, statistic, p.value)
+
+print(test_results)
 ```
 
 ## Section 3: Prevalence Modeling
