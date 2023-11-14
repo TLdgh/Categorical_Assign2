@@ -130,8 +130,7 @@ perform_chi_square <- function(data) {
     mutate(No = (100 - `Yes, had long-term symptoms`) * count / 100,
            Yes = `Yes, had long-term symptoms` * count / 100) %>%
     select(-`Yes, had long-term symptoms`) %>%
-    group_by(`Age.group`) %>%
-    summarise(Yes = sum(Yes), No = sum(No))
+    group_by(`Age.group`) 
   
   chi_square_result <- chisq.test(contingency_table[-1])
   
