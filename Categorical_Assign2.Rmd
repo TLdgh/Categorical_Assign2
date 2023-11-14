@@ -24,15 +24,17 @@ h2{font-size: 12pt;}
 </style>
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(plotly)
 library(kableExtra)
+library(bestglm)
 ```
 
 ```{r}
 CCAHS<-read.csv("CCAHS.csv", header = TRUE)
 Covid<-read.csv("Covid.csv", header = TRUE)
+Covid_aG<-read.csv("COVID_cases.csv", header = TRUE)
 WMortality<-read.csv("WeeklyMortality.csv", header = TRUE)
 ExMortality<-read.csv("ExcessMortality.csv", header = TRUE)
 LongTerm<-read.csv("LongTerm.csv", header = TRUE)
@@ -52,24 +54,131 @@ In this assignment, we looked into the COVID-19 epidemiology data sets provided 
 
 # Method
 
-## Section 1: Mortality
+## Mortality
 
-## Section 2: Long-term Impact
+## Long-term Impact
 
-## Section 3: Prevalence Modeling
+## Prevalence Modeling
+
+We used the Canadian COVID-19 Antibody and Health Survey (CCAHS) Cycle 1 microdata in modeling the prevelance. The CCAHS is collecting key information relevant to the pandemic to learn as much as possible about the virus, how it affects overall health, how it spreads, and whether Canadians are developing antibodies against it. [@CCAHS] The survey contained two parts, an electronic questionnaire and an at-home blood test. The questionnaire aimed to get general health and exposure conditions of participants, whereas the blood test was used to determine the presence of COVID-19 antibodies.
+
+The survey was designed as cross-sectional and was given to individuals over 1 years old, excluding the population in remote areas of Canada. The data were sampled randomly from 30 strata created from each province. Due to the various size of the population of each stratum, Statistics Canada had to adjust the sample size in those strata with a larger population and higher proportion of COVID confirmed cases, ensuring a precise estimate of the prevalence. In addition, a two-stage sampling method was done at the household level, from which one of the household members was selected for the survey. In total, a sample size of 47900 people were selected and about 23.0% responded completely the survey.
+
+The resulted data contained 10978 number of responses and 99 variables. Due to the large size of the number of variables, we only selected the ones that we were mostly interested in. We believed that the selected variables were most likely significant in modeling the prevalence before attempting to look into the data. After all, a variable showing if the respondent had a family doctor or not might be less likely to affect the prevalence than a variable showing the vaccination status. However, one must note that there might be predictors that could indirectly affect the response variable. For example, one could find the variable showing the response to the following question: "What are the reasons you would not get the COVID-19 vaccine? - Do not consider it necessary to get the vaccine". This variable might have influence on the prevalence because no vaccine was given to the respondent. However, we thought that it was rather less informative because the information was already reflected in vaccination status. Therefore, we only chose those variables that can have a direct impact on the prevalence. Moreover, variables could have invalid categories like "Valid skip" or "Not stated". These categories were present due to regulation and law reinforcement, and the survey is designed entirely voluntary. Therefore these categories were treated by us as missing data. Any variable with a high percentage of missing values (>25%) were dropped. 
+
+We gave a data definition in Table() below. 
+
+```{r}
+RegressionData<-CCAHS%>%transmute(Covid_Status=case_when(CS_35==1 ~ "Yes", CS_35==2 ~ "No", .default = NA),
+                                  chronic=case_when(CHRGNUM==0 ~ "No", CHRGNUM==9 ~ NA, .default = "Yes"),
+                                  DirectContact=case_when(RA_10==2 ~ "Yes", RA_10==9 ~ NA, .default = "No"),
+                                  Smoke=case_when(RA_35==1 ~ "Yes", RA_35==2 ~ "No", .default = NA),
+                                  WashHand=case_when(HB_20A==1~"Always",HB_20A==2~"Often",HB_20A==3~"Occasionally",HB_20A==4~"Never",.default = NA),
+                                  WearMask=case_when(HB_20B==1~"Always",HB_20B==2~"Often", HB_20B==3~"Occasionally", HB_20B==4~"Never",.default = NA),
+                                  Keep2m=case_when(HB_20D==1~"Always",HB_20D==2~"Often", HB_20D==3~"Occasionally", HB_20D==4~"Never",.default = NA),
+                                  AvoidCrowds=case_when(HB_20E==1~"Always",HB_20E==2~"Often", HB_20E==3~"Occasionally", HB_20E==4~"Never",.default = NA),
+                                  FluVac=case_when(FLU_05==1~"Yes",FLU_05==2~"No",.default = NA),
+                                  VaccineStatus=case_when(VXD05==1 ~ "Yes", VXD05==2 ~ "No", .default = NA),
+                                  Sex=case_when(GDR_05==1 ~ "Male", GDR_05==2 ~ "Female", .default = NA),
+                                  Age=case_when(AGEGRP==1~"1 to 19 years",AGEGRP==2~"20 to 39 years", AGEGRP==3~"40 to 59 years", AGEGRP==4~"60 years or older",.default = NA),
+                                  NumHouse=case_when(HHCDV==1~"One",HHCDV==2~"Two", HHCDV==3~"Three", HHCDV==4~"Four+",.default = NA),
+                                  AntiBodyResult=factor(case_when(LABDCOVD==1~"Positive",LABDCOVD==2~"Negative",LABDCOVD==3~"Indeterminate"), levels = c("Negative", "Indeterminate", "Positive"))
+)%>%mutate(across(everything(), factor))
+
+data.frame(
+  Variables=colnames(RegressionData),   
+  Type=sapply(RegressionData, function(x) class(x)),
+  Example=sapply(RegressionData, function(x) paste(as.character(head(unique(x),2)), collapse = ", ")),
+  Number.Unique=sapply(RegressionData, function(x) length(unique(x))),
+  PctMissing=sapply(RegressionData, function(x) paste0(round(sum(is.na(x))/length(x), 4)*100,"%")),
+  Comment=c("Had the respondent ever had a positive test result?",
+                  "Had the respondent reported having chronic condition?",
+                  "In the last six months, had the respondent worked in direct contact with people?",
+                  "Does the respondent currently smoke tobacco?",
+                  "Wash hands often?",
+                  "Wear a mask in indoor public spaces where physical distancing is difficult or a mandatory mask by-law exists?",
+                  "Keep a 2 meter or 6 foot distance from others?",
+                  "Avoid crowds and large gatherings?",
+                  "In the past 12 months, have you had a seasonal flu vaccine?",
+                  "Received at least one vaccine dose against COVID-19?",
+                  "Sex",
+                  "Age group",
+                  "Number of people living in household",
+                  "The overall interpretation of the laboratory result is that if 0 of 3 antigen tests was positive, the respondent had an overall negative test for antibodies against SARS-CoV-2, if 1 of 3 antigen tests was positive, the respondent had an overall indeterminate test for antibodies against SARS-CoV-2, and if 2 or more of 3 antigen tests were positive, the respondent had an overall positive test for antibodies against SARS-CoV-2.")
+)%>%kable(caption = "COVID Status Data Definition")%>%
+  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")
+```
+
+To fully understand the relationship between the response variable Covid_Status with other predictors, we fitted a logistic model in Section 3.3 and provided additional inferences. 
 
 # Result
 
-## Section 1: Mortality
+## Mortality
 
-## Section 2: Long-term Impact
+## Long-term Impact
 
-## Section 3: Prevalence Modeling
+## Prevalence Modeling
+
+We selected the model with the least AIC value shown in Table().
+```{r}
+Xy<-RegressionData[,2:14]%>%mutate(y=RegressionData$Covid_Status)%>%na.omit()
+res<-bestglm(Xy,family=binomial,IC=c("AIC")) 
+
+fits<-t(rbind(res$Subsets[,1:14], n=colSums(res$Subsets[,1:14])))
+fits<-cbind(as.data.frame(fits[order(fits[,"n"], decreasing = TRUE),-15]%>%t()), res$Subsets[,15:16])
+
+fits%>%
+  kable(caption = "Fitted Model")%>%
+  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")%>%
+  row_spec(0,bold=TRUE)%>%
+  row_spec(5, background="yellow")
+```
+
+Our best model was:
 
 ```{r}
-WMortality%>%mutate(Year=year(REF_DATE), Week=substr(REF_DATE,6,10))%>%mutate(Year=factor(Year))%>%filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
-  plot_ly(x=~Week, y=~VALUE, color=~Year,type = "scatter", mode="lines")
+res$BestModel%>%summary()
 ```
+
+From the above information we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months was not significant enough to be included in the model, with a p-value = 0.154. We looked at the AIC with this variable removed:
+
+```{r}
+res$BestModels[1:2,]%>%
+  kable(caption = "Fitted Model without Flu Vaccinated Variable")%>%
+  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")%>%
+  row_spec(0,bold=TRUE)
+```
+
+One can see that there's not much difference in the AIC value, hence we chose the simpler model. Similarly, the variable DirectContactYes that showed whether the participant had directed contact with people or not also had unpromising p-value=0.085 from the summary Table(). 
+```{r}
+fit1<-glm(y~DirectContact+VaccineStatus+AntiBodyResult, data=Xy, family = "binomial")
+fit2<-glm(y~VaccineStatus+AntiBodyResult, data=Xy, family = "binomial")
+anova(fit1, fit2, test="LRT")
+```
+
+We again dropped this variable because the AIC didn't change significantly after removal:
+```{r}
+res$Subsets[3:4,]%>%
+  kable(caption = "Fitted Model without Direct Contact Variable")%>%
+  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")%>%
+  row_spec(0,bold=TRUE)
+```
+
+Therefore, we concluded that our model was:
+
+```{=latex}
+\begin{equation}
+\ln{(\frac{p_i}{1-p_i})} = -4.959 -4.244 \times \text{VaccineStatusYes}_i +3.414 \times \text{AntiBodyResultIndeterminate}_i +6.6166 \times \text{AntiBodyResultPositive}_i
+\end{equation}
+```
+
+with the following summary information:
+```{r}
+fit<-glm(y~VaccineStatus+AntiBodyResult, data=Xy, family = "binomial")
+summary(fit)
+```
+
+It was not surprising to see that 
 
 # Discussion
 
