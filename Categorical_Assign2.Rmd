@@ -145,32 +145,35 @@ fits%>%gt()%>%tab_header(
   tab_style(style = list(cell_fill(color = "lightblue")), locations = cells_body(rows = 5))
 ```
 
-Our best model had the following coefficients shown in the summary Table 3.3.2, from which we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months. The p-value = 0.155 was not significant enough, so we did not have a conclusion on whether the variable was associated with the response. For model simplicity we therefore omit the variable.
+Our best model had the following coefficients shown in the summary Table 3.3.2, from which we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months. The p-value = 0.155 was not significant enough, so we did not have a conclusion on whether the variable was associated with the response.
 
 ```{r}
 Models$BestModel%>%stargazer(type = "text", title="Table 3.3.2: Summary", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
 ```
 
-We looked at the AIC when this variable was removed. One can see in Table() below that there was not much difference in the AIC value, hence we chose the simpler model. 
+We looked at the AIC when the flu vaccine status variable was removed. One can see in Table 3.3.3 below that there was not much difference in the AIC value. For model simplicity we therefore omitted the variable. 
 
 ```{r}
 Models$BestModels[1:2,]%>%gt()%>%tab_header(
-    title = "Table 3: COVID Status Data Definition")%>%tab_options(container.width = 1400, table.align="left")
+    title = "Table 3.3.3: Model AIC Comparison with FluVac Removed")%>%tab_options(container.width = 1400, table.align="left")%>%
+  tab_style(style = list(cell_fill(color = "lightblue")), locations = cells_body(columns=FluVac))
 ```
 
-Similarly, the variable DirectContactYes that showed whether the participant had directed contact with people or not also had unpromising p-value=0.085 from the following summary Table. 
+Similarly, from summary Table 3.3.2 above we found that the variable DirectContactYes that showed whether the participant had directed contact with people or not also had an unpromising p-value=0.053. We removed the FluVac variable first and compared the models using the deviance. From the following summary Table 3.3.4 one can see that the p-value of the Chi-squared statistic was 0.085, suggesting again that we did not have a conclusion whether or not there was an association between the COVID status and having direct contact with people.
+
 ```{r}
 fit1<-glm(y~DirectContact+VaccineStatus+AntiBodyResult, data=Xy, family = "binomial")
 fit2<-glm(y~VaccineStatus+AntiBodyResult, data=Xy, family = "binomial")
 tbls<-anova(fit1, fit2, test="LRT")
 notes<-strsplit(attr(tbls, "heading")[2], "\n")
-tbls%>%stargazer(type = "text", title="Table 3: Summary",notes=notes[[1]],summary=FALSE)
+tbls%>%stargazer(type = "text", title="Table 3.3.4: Validation of DirectContact Variable",notes=notes[[1]],summary=FALSE)
 ```
 
-We again dropped this variable because the AIC didn't change significantly after removal:
+We again dropped the variable DirectContact because the AIC didn't change significantly after removal:
 ```{r}
 Models$Subsets[3:4,]%>%gt()%>%tab_header(
-    title = "Table 3: COVID Status Data Definition")%>%tab_options(container.width = 1400, table.align="left")
+    title = "Table 3.3.5: Model AIC Comparison with DirectContact Removed")%>%tab_options(container.width = 1400, table.align="left")%>%
+  tab_style(style = list(cell_fill(color = "lightblue")), locations = cells_body(columns=DirectContact))
 ```
 
 Therefore, we concluded that our model was:
