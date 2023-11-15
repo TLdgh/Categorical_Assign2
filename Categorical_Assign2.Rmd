@@ -58,11 +58,72 @@ We used two data sets to explore the relationship between COVID-19 and the morta
 the number of new infections and deaths numbers in Canada and updates every Monday morning from Feb.01，2020 to Oct.28, 2023. This data set contains 2940 observations of 23 variables, more information about the data set are present below.
 ```{r}
 #data dictionary:Covid cases and death
+data.frame(
+  Variables=colnames(Covid),   
+  Type=sapply(Covid, function(x) class(x)),
+  Example=sapply(Covid, function(x) paste(as.character(head(unique(x),2)), collapse = ", ")),
+  Number.Unique=sapply(Covid, function(x) length(unique(x))),
+  PctMissing=sapply(Covid, function(x) paste0(round(sum(is.na(x))/length(x), 4)*100,"%")),
+  Comment=c("Identification number assigned to a jurisdiction (province, territory, Canada)",
+             "English name of jurisdiction (province, territory, Canada)",
+             "French name of jurisdiction (province, territory, Canada)",
+             "Last day of the epidemiologic week for which the data represent. Epidemiological weeks are from Sunday to Saturday and this date will always fall on a Saturday.",
+             "Number assigned to each epidemiologic week in a calendar year, based on the Fluwatch weeks calendar",
+             "The calendar year associated with the epidemiologic week (based on the Fluwatch weeks calendar) in which the data was reported.(2020-2023)",
+             "Indicates if the jurisdiction reported an update that week for any indicator (1=yes 0=no)",
+             "The total number of cases reported from January 2020 until the end of the reporting week in a jurisdiction.",
+             "Total number of cases during the reporting week for a jurisdiction, minus the total number of cases from that jurisdiction's previous week's update.",
+             "The total number of cases for a jurisdiction divided by the population of that jurisdiction [(totalcases/population) x 100,000]",
+             "The total number of deaths reported from January 2020 until the end of the reporting week in a jurisdiction.",
+             "Total number of deaths for a jurisdiction, minus the total number of deaths from that jurisdiction's previous week's update.",
+             "The total number of deaths for a jurisdiction divided by the population of that jurisdiction, multiplied by 100,000 [(numdeaths/population) x 100,000]",
+             "The number of cases reported over the last reporting week for a jurisdiction, divided by the population of that jurisdiction, multiplied by 100,000 [(numtotal_last7/population) x 100,000]",
+            "The number of deaths reported over the last reporting week in a jurisdiction, divided by the population of that jurisdiction, multiplied by 100,000 [(numdeaths_last7 /population) x 100,000]",
+           "The number of cases reported over the last 2 reporting weeks in a jurisdiction",
+           "The number of cases reported over the last 2 reporting weeks in a jurisdiction, divided by the population of that jurisdiction, multiplied by 100,000 [(numtotal_last14/population) x 100,000]",
+           "The number of deaths reported over the last 2 reporting weeks in a jurisdiction",
+           "The number deaths reported over the last 2 reporting weeks in a jurisdiction, divided by the population of that jurisdiction, multiplied by 100,000 [(numdeaths_last14/population) x 100,000]",
+           "The number of cases reported over the reporting week in a jurisdiction, divided by 7 days",
+           "The number of cases reported over the reporting week in a jurisdiction, divided by 7 days, divided by the population of that jurisdiction, multiplied by 100,000 [(avgcases_last7/population) x 100,000]",
+           "The number of deaths reported over the reporting week in a jurisdiction, divided by 7 days",
+           "The number of deaths reported over the reporting week in a jurisdiction, divided by 7 days, multiplied by 100,000 [(avgdeaths_last7/population) x 100,000]"
+           )
+)%>%kable(caption = "COVID-19 Cases and Death Data Dictionary ")%>%
+  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")
 
 ```
 Second data set is the provisional weekly death counts, by ages and sex from 2010 to 2023, published by StatCan. this data set record the 149730 observations of 17 variables that are relevant for monitoring the impacts of COVID-19 on mortality in Canada.
 ```{r}
 #data dictionary:Weekly mortality
+data.frame(
+  Variables=colnames(WMortality),   
+  Type=sapply(WMortality, function(x) class(x)),
+  Example=sapply(WMortality, function(x) paste(as.character(head(unique(x),2)), collapse = ", ")),
+  Number.Unique=sapply(WMortality, function(x) length(unique(x))),
+  PctMissing=sapply(WMortality, function(x) paste0(round(sum(is.na(x))/length(x), 4)*100,"%")),
+  Comment=c("Reference period for the series being released.(2010-2023)",
+             "Name of dimension. There can be up to 10 dimensions in a data table.
+(i.e. Geography)",
+             "Dissemination Geography Unique Identifier - DGUID.
+It is an alphanumeric code, composed of four components. It varies from 10 to 20 characters in length. The first 9 characters are fixed in composition and length. Vintage (4) + Type (1) + Schema (4) + Geographic Unique Identifier (2-11) : VVVV T SSSS GGGGGGGGGGG",
+             "Age when death occurred",
+             "Sex ",
+             "Number of deaths",
+             "The unit of measure applied to a member given in text.",
+             "The unique reference code associated with a particular unit of measure.",
+             "The scalar factor associated with a data series, displayed as text. There can be multiple scalar factors in a table.",
+             "The unique numeric reference code associated with a particular scalar factor.",
+             "Unique variable length reference code time-series identifier, consisting of the letter 'V', followed by up to 10 digits.",
+             "Concatenation of the member ID values for each dimension.
+One value per dimension. Maximum of 10 dimensions.",
+             "total number of death under certain characteristics",
+             "Shows various states of a data value using symbols. These symbols are described in the symbol legend and notes contained in the metadata file. Some symbols accompany a data value while others replace a data value. i.e. – A, B, C, D, E, F,.., X, 0s",
+             "Describes data point that are preliminary or revised, displayed using the symbolsp and r. These symbols accompany a data value.",
+             "Describes a data value that has been terminated (no longer updated) by Statistics Canada. Termination of a data point is displayed using the symbol t.",
+             "This field displays the decimal precision for a given value."
+           )
+)%>%kable(caption = "COVID-19 Cases and Death Data Dictionary ")%>%
+  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")
 
 ```
 In order to have better understanding about the mortality in Canada, we visualize the weekly death counts every year form 2010 to 2023 in Figure(), it is clear to see that the  the number of annual
@@ -108,20 +169,7 @@ layout(title = 'Weekly Death Counts without COIVD',yaxis = list(title = "Number 
 # Result
 
 ## Section 1: Mortality
-
-## Section 2: Long-term Impact
-
-## Section 3: Prevalence Modeling
-
-```{r}
-WMortality%>%mutate(Year=year(REF_DATE), Week=substr(REF_DATE,6,10))%>%mutate(Year=factor(Year))%>%filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
-  plot_ly(x=~Week, y=~VALUE, color=~Year,type = "scatter", mode="lines")
-```
-
-# Discussion
-
-## Section 1: Mortality
-
+For annual mortality,
 ```{r}
 #Contingency table for mortality rate VS year(Odds Ratio)
 tdeath<-WOMortality%>%
@@ -147,8 +195,6 @@ ORtbl%>%
   kable(caption = "Odds ratio for three years") %>%
   kable_styling(bootstrap_options = c("striped", "condensed"))
 ```
-
-
 
 
 ```{r}
@@ -288,6 +334,19 @@ AORtbl%>%
   kable(caption = "Odds ratio for three years in Different seasons") %>%
   kable_styling(bootstrap_options = c("striped", "condensed"))
 ```
+## Section 2: Long-term Impact
+
+## Section 3: Prevalence Modeling
+
+```{r}
+WMortality%>%mutate(Year=year(REF_DATE), Week=substr(REF_DATE,6,10))%>%mutate(Year=factor(Year))%>%filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
+  plot_ly(x=~Week, y=~VALUE, color=~Year,type = "scatter", mode="lines")
+```
+
+# Discussion
+
+## Section 1: Mortality
+
 ## Section 2: Long-term Impact
 
 ## Section 3: Prevalence Modeling
