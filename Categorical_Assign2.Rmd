@@ -53,6 +53,52 @@ In this assignment, we looked into the COVID-19 epidemiology data sets provided 
 # Method
 
 ## Section 1: Mortality
+We used two data sets to explore the relationship between COVID-19 and the mortality in Canada. First data set is focus on the COVID-19 cases and death published by government of Canada to explore 
+the number of new infections and deaths numbers in Canada and updates every Monday morning from Feb.01，2020 to Oct.28, 2023. This data set contains 2940 observations of 23 variables, more information about the data set are present below.
+```{r}
+#data dictionary:Covid cases and death
+
+```
+Second data set is the provisional weekly death counts, by ages and sex from 2010 to 2023, published by StatCan. this data set record the 149730 observations of 17 variables that are relevant for monitoring the impacts of COVID-19 on mortality in Canada.
+```{r}
+#data dictionary:Weekly mortality
+
+```
+In order to have better understanding about the mortality in Canada, we visualize the weekly death counts every year form 2010 to 2023 in Figure(), it is clear to see that the  the number of annual
+deaths is increasing every year. The overall trend from 2010 to 2019 is similar, with an general  decrease from the begging to the middle of the year then followed by an upward trend until the year end. In the middle of 2020 and the beginning of 2022, there exist two significant spikes on the figure. These pronounced increases in case counts raise the possibility that they may be attributed to distinct outbreaks of the epidemic. 
+To verify this conjecture, we showed the weekly number of death without the COVID-19 cases in Figure(). The spikes in 2020 and 2022 are removed but the small spike in mid-2021 still exist. So death counts rapid increase in 2020 and 2022 may caused by COVID-19 and we will discuss the relationship between COVID-19 and mortality in the following section.
+```{r}
+#vizualize the death with and without covid
+WMortality%>%
+  mutate(Year=year(REF_DATE),Week=substr(REF_DATE,6,10))%>%
+  mutate(Year=factor(Year))%>%
+  filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
+  plot_ly(x=~Week, y=~VALUE, color=~Year,type = "scatter", mode="lines")%>%
+  layout(title = 'Weekly Death Counts', yaxis = list(title = "Number of Death"))
+
+Withoutc<-WMortality%>%
+  mutate(Year=year(REF_DATE),Week=substr(REF_DATE,6,10))%>%
+  filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence",Year>="2020")%>%
+  select(REF_DATE,Year, Week, GEO,Characteristics,VALUE)%>%
+  na.omit()
+ Withoutc<-Withoutc[-c(1:4),]
+CO<-Covid%>%
+  filter(prname=="Canada")%>%
+  select(date,numdeaths_last7)
+  colnames(CO)[1] <- "REF_DATE"
+
+WOMortality<-WMortality%>%
+  mutate(Year=year(REF_DATE),Week=substr(REF_DATE,6,10))%>%
+  filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
+  select(REF_DATE,Year, Week, GEO,Characteristics,VALUE)
+ WOMortality<- merge(WOMortality,CO,by="REF_DATE",all=TRUE)
+ WOMortality<- WOMortality[-c(707:721),]
+ WOMortality$numdeaths_last7[is.na( WOMortality$numdeaths_last7)] = 0
+WOMortality%>%
+  mutate(Death_without_covid=VALUE-numdeaths_last7)%>%
+  plot_ly( x=~Week, y=~Death_without_covid, color=~factor(Year),type = "scatter", mode="lines")%>%
+layout(title = 'Weekly Death Counts without COIVD',yaxis = list(title = "Number of Death without COVID"))
+```
 
 ## Section 2: Long-term Impact
 
@@ -75,6 +121,172 @@ WMortality%>%mutate(Year=year(REF_DATE), Week=substr(REF_DATE,6,10))%>%mutate(Ye
 
 ## Section 1: Mortality
 
+```{r}
+#Contingency table for mortality rate VS year(Odds Ratio)
+tdeath<-WOMortality%>%
+  filter( Year>="2020")%>%
+  group_by(Year)%>%
+  summarise(TotalDeath=sum(VALUE),Totalcoviddeath=sum(numdeaths_last7), CDrate=Totalcoviddeath/TotalDeath)
+Y=tdeath$CDrate
+tbl<-data.frame(cbind(Y,1-Y))
+colnames(tbl)<-c("Covid", "Not Covid")
+rownames(tbl)<-c("2020", "2021","2022","2023")
+  kable(tbl, caption = "Contingency Table for Year and Death in Canada")%>%
+  add_header_above(c(" ", "Death" = 2))%>%
+  column_spec(1:1, width = "8em",bold=TRUE)%>%
+  kable_styling(bootstrap_options = c("striped", "condensed"))
+
+OR21=tbl[1,1]*tbl[2,2]/(tbl[1,2]*tbl[2,1])
+OR22=tbl[1,1]*tbl[3,2]/(tbl[1,2]*tbl[3,1])
+OR23=tbl[1,1]*tbl[4,2]/(tbl[1,2]*tbl[4,1])
+ORtbl<-data.frame(OR21,OR22,OR23)
+colnames(ORtbl)<-c("2021 ", "2022","2023")
+rownames(ORtbl)<-"Odds Ratio"
+ORtbl%>%
+  kable(caption = "Odds ratio for three years") %>%
+  kable_styling(bootstrap_options = c("striped", "condensed"))
+```
+
+
+
+
+```{r}
+# table(chi-square)
+YC=tdeath$Totalcoviddeath
+NC=tdeath$TotalDeath-tdeath$Totalcoviddeath
+ntbl<-data.frame(cbind(YC,NC))
+colnames(ntbl)<-c("Covid", "Not Covid")
+rownames(ntbl)<-c("2020", "2021","2022","2023")
+  kable(ntbl, caption = "Contingency Table for Year and Death in Canada")%>%
+  add_header_above(c(" ", "Death" = 2))%>%
+  column_spec(1:1, width = "8em",bold=TRUE)%>%
+  kable_styling(bootstrap_options = c("striped", "condensed"))
+chisq.test(ntbl)
+
+```
+
+We were interested in the effect of COVID-19 on mortality in different seasons.
+ For Spring,
+```{r}
+# three way table(Year x Death x Season)
+seasonal<-WOMortality%>%
+  mutate(Month=factor(substr(REF_DATE,6,7)),
+         Season=case_when(
+           Month %in% c("03","04","05")~"Spring",
+           Month %in% c("06","07","08")~"Summer",
+           Month %in% c("09","10","11")~"Autumn",
+           Month %in% c("12","01","02")~"Winter",
+         ))%>%
+  filter(Year>=2020)%>%
+  select(REF_DATE,Year,Month,Season,VALUE,numdeaths_last7)
+  colnames(seasonal)[5] <- "Totaldeath"
+  
+# Table (Spring)
+Spring<-seasonal%>%
+  filter(Season=="Spring")%>%
+ group_by(Year)%>%
+  summarise(TotalDeath=sum(Totaldeath),Totalcoviddeath=sum(numdeaths_last7), CDrate=Totalcoviddeath/TotalDeath)
+Pspr=Spring$CDrate
+sprtbl<-data.frame(cbind(Pspr,1-Pspr))
+colnames(sprtbl)<-c("Covid", "Not Covid")
+rownames(sprtbl)<-c("2020","2021","2022","2023")
+  kable(sprtbl, caption = "Contingency Table for Year and Death in Spring")%>%
+  add_header_above(c(" ", "Death on Spring" = 2))%>%
+  column_spec(1:1, width = "8em",bold=TRUE)%>%
+  kable_styling(bootstrap_options = c("striped", "condensed"))
+```
+
+For Summer
+```{r}
+# Table (Summer)
+sum<-seasonal%>%
+  filter(Season=="Summer")%>%
+ group_by(Year)%>%
+  summarise(TotalDeath=sum(Totaldeath),Totalcoviddeath=sum(numdeaths_last7), CDrate=Totalcoviddeath/TotalDeath)
+Psum=sum$CDrate
+sumtbl<-data.frame(cbind(Psum,1-Psum))
+colnames(sumtbl)<-c("Covid", "Not Covid")
+rownames(sumtbl)<-c("2020","2021","2022","2023")
+  kable(sumtbl, caption = "Contingency Table for Year and Death in Summer")%>%
+  add_header_above(c(" ", "Death on Summer" = 2))%>%
+  column_spec(1:1, width = "8em",bold=TRUE)%>%
+  kable_styling(bootstrap_options = c("striped", "condensed"))
+```
+
+For Autumn
+```{r}
+# Table (Autumn)
+aut<-seasonal%>%
+  filter(Season=="Autumn")%>%
+ group_by(Year)%>%
+  summarise(TotalDeath=sum(Totaldeath),Totalcoviddeath=sum(numdeaths_last7), CDrate=Totalcoviddeath/TotalDeath)
+Paut=aut$CDrate
+auttbl<-data.frame(cbind(Paut,1-Paut))
+colnames(auttbl)<-c("Covid", "Not Covid")
+rownames(auttbl)<-c("2020","2021","2022")
+  kable(auttbl, caption = "Contingency Table for Year and Death in Autumn")%>%
+  add_header_above(c(" ", "Death on Autumn" = 2))%>%
+  column_spec(1:1, width = "8em",bold=TRUE)%>%
+  kable_styling(bootstrap_options = c("striped", "condensed"))
+```
+For winter
+```{r}
+# Table (Winter)
+win<-seasonal%>%
+  filter(Season=="Winter")%>%
+ group_by(Year)%>%
+  summarise(TotalDeath=sum(Totaldeath),Totalcoviddeath=sum(numdeaths_last7), CDrate=Totalcoviddeath/TotalDeath)
+Pwin=win$CDrate
+wintbl<-data.frame(cbind(Pwin,1-Pwin))
+colnames(wintbl)<-c("Covid", "Not Covid")
+rownames(wintbl)<-c("2020","2021","2022","2023")
+  kable(wintbl, caption = "Contingency Table for Year and Death in Winter")%>%
+  add_header_above(c(" ", "Death on Winter" = 2))%>%
+  column_spec(1:1, width = "8em",bold=TRUE)%>%
+  kable_styling(bootstrap_options = c("striped", "condensed"))
+```
+
+The Odds ratio for all seasons,
+```{r}
+#OR in Spring
+sprOR21=sprtbl[1,1]*sprtbl[2,2]/(sprtbl[1,2]*sprtbl[2,1])
+sprOR22=sprtbl[1,1]*sprtbl[3,2]/(sprtbl[1,2]*sprtbl[3,1])
+sprOR23=sprtbl[1,1]*sprtbl[4,2]/(sprtbl[1,2]*sprtbl[4,1])
+sprORtbl<-data.frame(sprOR21,sprOR22,sprOR23)
+colnames(sprORtbl)<-c("2021 ", "2022","2023")
+rownames(sprORtbl)<-"Odds Ratio"
+
+#OR in Summer
+sumOR21=sumtbl[1,1]*sumtbl[2,2]/(sumtbl[1,2]*sumtbl[2,1])
+sumOR22=sumtbl[1,1]*sumtbl[3,2]/(sumtbl[1,2]*sumtbl[3,1])
+sumOR23=sumtbl[1,1]*sumtbl[4,2]/(sumtbl[1,2]*sumtbl[4,1])
+sumORtbl<-data.frame(sumOR21,sumOR22,sumOR23)
+colnames(sumORtbl)<-c("2021 ", "2022","2023")
+rownames(sumORtbl)<-"Odds Ratio"
+
+#OR in Autumn
+autOR21=auttbl[1,1]*auttbl[2,2]/(auttbl[1,2]*auttbl[2,1])
+autOR22=auttbl[1,1]*auttbl[3,2]/(auttbl[1,2]*auttbl[3,1])
+autOR23=auttbl[1,1]*auttbl[4,2]/(auttbl[1,2]*auttbl[4,1])
+autORtbl<-data.frame(autOR21,autOR22,autOR23)
+colnames(autORtbl)<-c("2021 ", "2022","2023")
+rownames(autORtbl)<-"Odds Ratio"
+
+#OR in Winter
+winOR21=wintbl[1,1]*wintbl[2,2]/(wintbl[1,2]*wintbl[2,1])
+winOR22=wintbl[1,1]*wintbl[3,2]/(wintbl[1,2]*wintbl[3,1])
+winOR23=wintbl[1,1]*wintbl[4,2]/(wintbl[1,2]*wintbl[4,1])
+winORtbl<-data.frame(winOR21,winOR22,winOR23)
+colnames(winORtbl)<-c("2021 ", "2022","2023")
+rownames(winORtbl)<-"Odds Ratio"
+
+AORtbl=rbind(sprORtbl,sumORtbl,autORtbl,winORtbl)
+rownames(AORtbl)<-c("Spring(Mar.- May.)","Summer(Jun.- Aug.)","Autumn(Sept.- Nov.)","Winter(Dec.- Feb.)")
+
+AORtbl%>%
+  kable(caption = "Odds ratio for three years in Different seasons") %>%
+  kable_styling(bootstrap_options = c("striped", "condensed"))
+```
 ## Section 2: Long-term Impact
 
 ## Section 3: Prevalence Modeling
