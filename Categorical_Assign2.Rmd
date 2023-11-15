@@ -185,7 +185,7 @@ It was not surprising to see that
 
 ## Prevalence Modeling
 
-From Section 3.3 we have found that the odds ratio of COVID-19 was related to two covariates: the vaccination status and the antibody presented in blood. Specifically, we interpreted the  
+From Section 3.3 we have found that the odds ratio of COVID-19 was related to two covariates: the vaccination status and the antibody presented in blood. Specifically, we interpreted the coefficients  
 
 # Conclusion
 
