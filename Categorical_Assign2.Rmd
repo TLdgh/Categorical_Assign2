@@ -69,7 +69,7 @@ The survey was designed as cross-sectional and was given to individuals over 1 y
 
 The resulted data contained 10978 number of responses and 99 variables. Due to the large size of the number of variables, we only selected the ones that we were mostly interested in. We believed that the selected variables were most likely significant in modeling the prevalence before attempting to look into the data. After all, a variable showing if the respondent had a family doctor or not might be less likely to affect the prevalence than a variable showing the vaccination status. However, one must note that there might be predictors that could indirectly affect the response variable. For example, one could find the variable showing the response to the following question: "What are the reasons you would not get the COVID-19 vaccine? - Do not consider it necessary to get the vaccine". This variable might have influence on the prevalence because no vaccine was given to the respondent. However, we thought that it was rather less informative because the information was already reflected in vaccination status. Therefore, we only chose those variables that can have a direct impact on the prevalence. Moreover, variables could have invalid categories like "Valid skip" or "Not stated". These categories were present due to regulation and law reinforcement, and the survey is designed entirely voluntary. Therefore these categories were treated by us as missing data. Any variable with a high percentage of missing values (>25%) were dropped. 
 
-We gave a data definition in Table() below. 
+We gave a data definition in Table 2.3.1 below. 
 
 ```{r}
 RegressionData<-CCAHS%>%transmute(Covid_Status=case_when(CS_35==1 ~ "Yes", CS_35==2 ~ "No", .default = NA),
@@ -110,7 +110,7 @@ DataDict<-data.frame(
                   "The overall interpretation of the laboratory result is that if 0 of 3 antigen tests was positive, the respondent had an overall negative test for antibodies against SARS-CoV-2, if 1 of 3 antigen tests was positive, the respondent had an overall indeterminate test for antibodies against SARS-CoV-2, and if 2 or more of 3 antigen tests were positive, the respondent had an overall positive test for antibodies against SARS-CoV-2.")
 )
 DataDict%>%gt()%>%tab_header(
-    title = "Table 1: COVID Status Data Definition")
+    title = "Table 2.3.1: COVID Status Data Definition")
 ```
 
 To fully understand the relationship between the response variable Covid_Status with other predictors, we fitted a logistic model in Section 3.3 and provided additional inferences. 
@@ -123,7 +123,14 @@ To fully understand the relationship between the response variable Covid_Status 
 
 ## Prevalence Modeling
 
-We selected the model with the least AIC value shown in Table().
+The hypothesis we were mostly interested in was:
+
+\begin{gather*}
+H_0: \beta_j = 0 \\
+H_0: \beta_j \neq 0
+\end{gather*}
+
+for each coefficient related to its corresponding covariate. In other words, we wanted to describe the relationship between the COVID status of a participant and other predictors. We selected the model with the least AIC value shown in Table 3.3.1.
 ```{r}
 Xy<-RegressionData[,2:14]%>%mutate(y=RegressionData$Covid_Status)%>%na.omit()
 Models<-bestglm(Xy,family=binomial,IC=c("AIC")) 
@@ -134,16 +141,17 @@ fits<-t(rbind(Models$Subsets[,1:14], n=colSums(Models$Subsets[,1:14])))
 fits<-cbind(as.data.frame(fits[order(fits[,"n"], decreasing = TRUE),-15]%>%t()), Models$Subsets[,15:16])
 
 fits%>%gt()%>%tab_header(
-    title = "Table 2: Complete List of Models")%>%tab_options(container.width = 1400, table.align="left")
+    title = "Table 3.3.1: Complete List of Models For COVID Status Estimation")%>%tab_options(container.width = 1400, table.align="left")%>%
+  tab_style(style = list(cell_fill(color = "lightblue")), locations = cells_body(rows = 5))
 ```
 
-Our best model had the following coefficients shown in the summary table:
+Our best model had the following coefficients shown in the summary Table 3.3.2, from which we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months. The p-value = 0.155 was not significant enough, so we did not have a conclusion on whether the variable was associated with the response. For model simplicity we therefore omit the variable.
 
 ```{r}
-Models$BestModel%>%stargazer(type = "text", title="Table 3: Summary", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
+Models$BestModel%>%stargazer(type = "text", title="Table 3.3.2: Summary", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
 ```
 
-From the above information we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months was not significant enough to be included in the model, with a p-value = 0.155. We looked at the AIC with this variable removed. One can see in Table() below that there's not much difference in the AIC value, hence we chose the simpler model. 
+We looked at the AIC when this variable was removed. One can see in Table() below that there was not much difference in the AIC value, hence we chose the simpler model. 
 
 ```{r}
 Models$BestModels[1:2,]%>%gt()%>%tab_header(
