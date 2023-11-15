@@ -143,7 +143,7 @@ Our best model had the following coefficients shown in the summary table:
 Models$BestModel%>%stargazer(type = "text", title="Table 3: Summary", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
 ```
 
-From the above information we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months was not significant enough to be included in the model, with a p-value = 0.154. We looked at the AIC with this variable removed. One can see in Table() below that there's not much difference in the AIC value, hence we chose the simpler model. 
+From the above information we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months was not significant enough to be included in the model, with a p-value = 0.155. We looked at the AIC with this variable removed. One can see in Table() below that there's not much difference in the AIC value, hence we chose the simpler model. 
 
 ```{r}
 Models$BestModels[1:2,]%>%gt()%>%tab_header(
