@@ -5,8 +5,10 @@ author:
 - Zhize Lu(300075114)
 - Chutong Zhang(300311325)
 output: 
-  bookdown::html_document2:
-    toc: true
+  html_notebook: 
+    toc: yes
+    number_sections: yes
+    fig_caption: yes
 header-includes:
 - \renewcommand{\and}{\\}
 - \usepackage{float}
@@ -27,8 +29,9 @@ h2{font-size: 12pt;}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(plotly)
-library(kableExtra)
 library(bestglm)
+library(gt)
+library(stargazer)
 ```
 
 ```{r}
@@ -85,7 +88,7 @@ RegressionData<-CCAHS%>%transmute(Covid_Status=case_when(CS_35==1 ~ "Yes", CS_35
                                   AntiBodyResult=factor(case_when(LABDCOVD==1~"Positive",LABDCOVD==2~"Negative",LABDCOVD==3~"Indeterminate"), levels = c("Negative", "Indeterminate", "Positive"))
 )%>%mutate(across(everything(), factor))
 
-data.frame(
+DataDict<-data.frame(
   Variables=colnames(RegressionData),   
   Type=sapply(RegressionData, function(x) class(x)),
   Example=sapply(RegressionData, function(x) paste(as.character(head(unique(x),2)), collapse = ", ")),
@@ -105,8 +108,9 @@ data.frame(
                   "Age group",
                   "Number of people living in household",
                   "The overall interpretation of the laboratory result is that if 0 of 3 antigen tests was positive, the respondent had an overall negative test for antibodies against SARS-CoV-2, if 1 of 3 antigen tests was positive, the respondent had an overall indeterminate test for antibodies against SARS-CoV-2, and if 2 or more of 3 antigen tests were positive, the respondent had an overall positive test for antibodies against SARS-CoV-2.")
-)%>%kable(caption = "COVID Status Data Definition")%>%
-  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")
+)
+DataDict%>%gt()%>%tab_header(
+    title = "Table 1: COVID Status Data Definition")
 ```
 
 To fully understand the relationship between the response variable Covid_Status with other predictors, we fitted a logistic model in Section 3.3 and provided additional inferences. 
@@ -122,71 +126,66 @@ To fully understand the relationship between the response variable Covid_Status 
 We selected the model with the least AIC value shown in Table().
 ```{r}
 Xy<-RegressionData[,2:14]%>%mutate(y=RegressionData$Covid_Status)%>%na.omit()
-res<-bestglm(Xy,family=binomial,IC=c("AIC")) 
-
-fits<-t(rbind(res$Subsets[,1:14], n=colSums(res$Subsets[,1:14])))
-fits<-cbind(as.data.frame(fits[order(fits[,"n"], decreasing = TRUE),-15]%>%t()), res$Subsets[,15:16])
-
-fits%>%
-  kable(caption = "Fitted Model")%>%
-  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")%>%
-  row_spec(0,bold=TRUE)%>%
-  row_spec(5, background="yellow")
+Models<-bestglm(Xy,family=binomial,IC=c("AIC")) 
 ```
-
-Our best model was:
 
 ```{r}
-res$BestModel%>%summary()
+fits<-t(rbind(Models$Subsets[,1:14], n=colSums(Models$Subsets[,1:14])))
+fits<-cbind(as.data.frame(fits[order(fits[,"n"], decreasing = TRUE),-15]%>%t()), Models$Subsets[,15:16])
+
+fits%>%gt()%>%tab_header(
+    title = "Table 2: Complete List of Models")%>%tab_options(container.width = 1400, table.align="left")
 ```
 
-From the above information we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months was not significant enough to be included in the model, with a p-value = 0.154. We looked at the AIC with this variable removed:
+Our best model had the following coefficients shown in the summary table:
 
 ```{r}
-res$BestModels[1:2,]%>%
-  kable(caption = "Fitted Model without Flu Vaccinated Variable")%>%
-  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")%>%
-  row_spec(0,bold=TRUE)
+Models$BestModel%>%stargazer(type = "text", title="Table 3: Summary", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
 ```
 
-One can see that there's not much difference in the AIC value, hence we chose the simpler model. Similarly, the variable DirectContactYes that showed whether the participant had directed contact with people or not also had unpromising p-value=0.085 from the summary Table(). 
+From the above information we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months was not significant enough to be included in the model, with a p-value = 0.154. We looked at the AIC with this variable removed. One can see in Table() below that there's not much difference in the AIC value, hence we chose the simpler model. 
+
+```{r}
+Models$BestModels[1:2,]%>%gt()%>%tab_header(
+    title = "Table 3: COVID Status Data Definition")%>%tab_options(container.width = 1400, table.align="left")
+```
+
+Similarly, the variable DirectContactYes that showed whether the participant had directed contact with people or not also had unpromising p-value=0.085 from the following summary Table. 
 ```{r}
 fit1<-glm(y~DirectContact+VaccineStatus+AntiBodyResult, data=Xy, family = "binomial")
 fit2<-glm(y~VaccineStatus+AntiBodyResult, data=Xy, family = "binomial")
-anova(fit1, fit2, test="LRT")
+tbls<-anova(fit1, fit2, test="LRT")
+notes<-strsplit(attr(tbls, "heading")[2], "\n")
+tbls%>%stargazer(type = "text", title="Table 3: Summary",notes=notes[[1]],summary=FALSE)
 ```
 
 We again dropped this variable because the AIC didn't change significantly after removal:
 ```{r}
-res$Subsets[3:4,]%>%
-  kable(caption = "Fitted Model without Direct Contact Variable")%>%
-  kable_styling(bootstrap_options=c("striped","condensed"),full_width = F,position="center")%>%
-  row_spec(0,bold=TRUE)
+Models$Subsets[3:4,]%>%gt()%>%tab_header(
+    title = "Table 3: COVID Status Data Definition")%>%tab_options(container.width = 1400, table.align="left")
 ```
 
 Therefore, we concluded that our model was:
-
-```{=latex}
-\begin{equation}
-\ln{(\frac{p_i}{1-p_i})} = -4.959 -4.244 \times \text{VaccineStatusYes}_i +3.414 \times \text{AntiBodyResultIndeterminate}_i +6.6166 \times \text{AntiBodyResultPositive}_i
-\end{equation}
-```
+\begin{equation*}
+\ln{(\frac{p_i}{1-p_i})} = -5.565 -4.568 \times \text{VaccineStatusYes}_i +3.392 \times \text{AntiBodyResultIndeterminate}_i +6.602 \times \text{AntiBodyResultPositive}_i
+\end{equation*}
 
 with the following summary information:
 ```{r}
-fit<-glm(y~VaccineStatus+AntiBodyResult, data=Xy, family = "binomial")
-summary(fit)
+fit2%>%stargazer(type = "text", title="Table 3: Summary", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
 ```
 
 It was not surprising to see that 
 
 # Discussion
 
-## Section 1: Mortality
+## Mortality
 
-## Section 2: Long-term Impact
+## Long-term Impact
 
-## Section 3: Prevalence Modeling
+## Prevalence Modeling
+
+From Section 3.3 we have found that the odds ratio of COVID-19 was related to two covariates: the vaccination status and the antibody presented in blood. Specifically, we interpreted the  
 
 # Conclusion
 
