@@ -120,7 +120,10 @@ WMortality%>%
   filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
   plot_ly(x=~Week, y=~VALUE, color=~Year,type = "scatter", mode="lines")%>%
   layout(title = 'Figure2.1.1:Weekly Death Counts', yaxis = list(title = "Number of Death"))
+```
 
+
+```{r}
 Withoutc<-WMortality%>%
   mutate(Year=year(REF_DATE),Week=substr(REF_DATE,6,10))%>%
   filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence",Year>="2020")%>%
@@ -152,20 +155,23 @@ layout(title = 'Figure2.1.2:Weekly Death Counts without COIVD cases',yaxis = lis
 # Result
 
 ## Section 1: Mortality
-In order to discuss the probability of COVID-19 death in the total death, we first calculated the proportion for the COVID-19 death from 2020 to 2023 in Table 3.1.1.
-
+In order to discuss the probability of COVID-19 death in the total death, we first calculated the proportion for the COVID-19 death from 2020 to 2023 in Table 3.1.1. To our surprise, the proportion in 2022 is the higher than the proportion in 2020, 0.0574 and 0.0490 respectively. This might because the outbreak of the new variant Omicron. The proportion in 2021 and 2023 are relatively low might because the population of vaccination increase.
 ```{r}
 #Contingency table for mortality rate VS year(Odds Ratio)
 tdeath<-WOMortality%>%
   filter( Year>="2020")%>%
   group_by(Year)%>%
   summarise(TotalDeath=sum(VALUE),Totalcoviddeath=sum(numdeaths_last7), CDrate=Totalcoviddeath/TotalDeath)
-Y=tdeath$CDrate
+Y=round(tdeath$CDrate,4)
 tbl<-data.frame(cbind(c(2020,2021,2022,2023),Y,1-Y))
 colnames(tbl)<-c("Year","Covid Death", "Not Covid Death")
 tbl%>%gt()%>%tab_header(
     title = "Table 3.1.1: Contingency table for proportion of COVID-19 death")
 ```
+To test the homogeneity for COVID-19 death probability condition on years, we can use the Chi-square test and the null hypothesis of homogeneity corresponding to:
+$H_0:P_{j|i}=P_{·j} $
+The alternative hypothesis is:
+$H_0:P_{j|i}\neq P_{·j} $
 
 ```{r}
 # table(chi-square) test homogeneity 
@@ -173,13 +179,12 @@ YC=tdeath$Totalcoviddeath
 NC=tdeath$TotalDeath-tdeath$Totalcoviddeath
 ntbl<-data.frame(cbind(YC,NC))
 colnames(ntbl)<-c("Covid", "Not Covid")
-rownames(ntbl)<-c("2020", "2021","2022","2023")
-  kable(ntbl, caption = "Contingency Table for Year and Death in Canada")%>%
-  add_header_above(c(" ", "Death" = 2))%>%
-  column_spec(1:1, width = "8em",bold=TRUE)%>%
-  kable_styling(bootstrap_options = c("striped", "condensed"))
+ntbls= cbind(c("2020","2021","2022","2023"),ntbl)
+  colnames(ntbls)<-c("Year","Covid", "Not Covid")
+ntbls%>%
+  gt()%>%tab_header(
+    title = "Table 3.1.2: Contingency table for death counts ")
   chisq.test(ntbl)
-
 ```
 
 
@@ -192,7 +197,7 @@ colnames(ORtbl)<-c("Year", "2021", "2022","2023")
 ORtbl%>%gt()%>%tab_header(
     title = "Table 3.1.2: Odds ratio for three years")
 ```
-From Table 3.1.2, we can see that the odds ratio for all three years are not equal to 1, which indicated that there exists association between year and COVID-19 death  
+From Table 3.1.2, we can see that the odds ratio for all three years are not equal to 1, which indicated that there exists association between year and COVID-19 death proportion  
 
 ## Section 2: Long-term Impact
 
