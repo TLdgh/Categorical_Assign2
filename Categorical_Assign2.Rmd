@@ -57,7 +57,7 @@ In this assignment, we looked into the COVID-19 epidemiology data sets provided 
 
 ## Section 2: Long-term Impact
 
-The data of COVID-19 long term symptom among Canadian adults contain the major variables shown in the following table. We mainly interested in the Measures which is the response variable. The data is grouped by sex and age groups. The value shows the percentage of responses within each specific group.
+The data of COVID-19 long term symptom among Canadian adults contain the major variables shown in the following table. We mainly interested in the Measures which is the response variable. The data is grouped by sex and age groups. The value shows the percentage of responses within each specific group.The original data provided the confidence intervals in the assessment of point estimates in case of high variability in the data.
 ```{r}
 data_dictionary <- data.frame(
   Variable = c("REF_DATE", "GEO", "Measures", "Sex", "Age group","Characteristics", "UOM", "VALUE", "DECIMALS"),
@@ -93,7 +93,7 @@ map_age_group <- function(age_group) {
     age_group %in% c("40 to 49") ~ "Ages 35 to 49",
     age_group %in% c("50 to 59", "60 to 69") ~ "Ages 50 to 64",
     age_group %in% c("70 to 79", "80+") ~ "Ages 65 and over",
-    TRUE ~ "Ages 18 and over" 
+    TRUE ~ NA_character_ 
   )
 }
 
@@ -105,8 +105,16 @@ summary_data <- cleaned_data %>%
     gender == 'female' ~ 'Females',
     TRUE ~ gender
   )) %>%
+  filter(!is.na(age_group)) %>%
   group_by(gender,age_group) %>%
   summarise(count = sum(count), .groups = 'drop')
+
+ages_18_and_over <- summary_data %>%
+  group_by(gender) %>%
+  summarise(count = sum(count), .groups = 'drop') %>%
+  mutate(age_group = 'Ages 18 and over')
+
+summary_data <- bind_rows(summary_data, ages_18_and_over)
 
 both_sexes_data <- summary_data %>%
   filter(gender %in% c('Males', 'Females')) %>%
@@ -122,16 +130,22 @@ final_summary_data <- final_summary_data %>%
 combined_data <- left_join(grouped_data, final_summary_data, by = c("Sex", "Age.group"))
 ```
 
+The data is first grouped by sex which consists of "males", "females", and "Both sexes". "Both sexes" group contain the combined data from both males and females. Then the data is further grouped by age groups. Subgroup "Ages 18 and over" has the total count for the corresponding sex group. Counts for specific responses "Yes, had long-term symptoms" and "No, did not have long-term symptoms" are estimated using the corresponding proportion and the total counts of each subgroup. 
+
+We wan to first study the association between age groups and the long term symptoms. A Chi-square test was conducted within each sex group. The hypothesis of independence corresponds to $H_0:p_{ij}=p_{i\cdot}p_{\cdot j}, \forall i,j$. Here under each sex group, we have row variable as the age groups,  column variable as the response of long term symptoms. Test results are shown in the following table.
 ```{r}
 library(broom)
 perform_chi_square <- function(data) {
-  contingency_table <- data %>%
+  filtered_data <- filter(data, `Age.group` != "Ages 18 and over")
+
+  contingency_table <- filtered_data %>%
     select(`Age.group`, `Yes, had long-term symptoms`, count) %>%
     mutate(No = (100 - `Yes, had long-term symptoms`) * count / 100,
            Yes = `Yes, had long-term symptoms` * count / 100) %>%
     select(-`Yes, had long-term symptoms`) %>%
-    group_by(`Age.group`) 
-  
+    group_by(`Age.group`) %>%
+    summarise(No = sum(No), Yes = sum(Yes))
+
   chi_square_result <- chisq.test(contingency_table[-1])
   
   return(chi_square_result)
@@ -149,6 +163,8 @@ test_results <- select(test_results, Sex, statistic, p.value)
 
 print(test_results)
 ```
+
+prop test? fisher test? G-test?
 
 ## Section 3: Prevalence Modeling
 
