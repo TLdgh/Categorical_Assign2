@@ -5,8 +5,10 @@ author:
 - Zhize Lu(300075114)
 - Chutong Zhang(300311325)
 output: 
-  bookdown::html_document2:
-    toc: true
+  html_notebook: 
+    toc: yes
+    number_sections: yes
+    fig_caption: yes
 header-includes:
 - \renewcommand{\and}{\\}
 - \usepackage{float}
@@ -24,19 +26,21 @@ h2{font-size: 12pt;}
 </style>
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(plotly)
-library(kableExtra)
+library(bestglm)
+library(gt)
+library(stargazer)
 ```
 
 ```{r}
 CCAHS<-read.csv("CCAHS.csv", header = TRUE)
 Covid<-read.csv("Covid.csv", header = TRUE)
+Covid_aG<-read.csv("COVID_cases.csv", header = TRUE)
 WMortality<-read.csv("WeeklyMortality.csv", header = TRUE)
 ExMortality<-read.csv("ExcessMortality.csv", header = TRUE)
 LongTerm<-read.csv("LongTerm.csv", header = TRUE)
-AgeGenderTotal<-read.csv("CovidAgeGender.csv", header = TRUE)
 ```
 
 # Introduction
@@ -57,29 +61,42 @@ In this assignment, we looked into the COVID-19 epidemiology data sets provided 
 
 ## Section 2: Long-term Impact
 
-The data of COVID-19 long term symptom among Canadian adults contain the major variables shown in the following table. We mainly interested in the Measures which is the response variable. The data is grouped by sex and age groups. The value shows the percentage of responses within each specific group.The original data provided the confidence intervals in the assessment of point estimates in case of high variability in the data.
-```{r}
-data_dictionary <- data.frame(
-  Variable = c("REF_DATE", "GEO", "Measures", "Sex", "Age group","Characteristics", "UOM", "VALUE", "DECIMALS"),
-  Type = c("Categorical", "Categorical", "Categorical", "Categorical", "Categorical", "Categorical", "Categorical", "Numerical", "Numerical"),
-  Description = c("Reference Year (2022)", "Geographic Location (Canada)", "Type of Measure (e.g., 'Yes, had long-term symptoms')", "Sex Category (e.g., Both sexes, Male, Female)", "Age Groups (e.g., Ages 18 and over, Ages 18 to 34)", "Percentage, Low/High 95% Confidence interval percentage", "Unit of Measure (Percentage of the group)", "Data Value", "Number of Decimal Places in Value")
-)
+The data of COVID-19 long term symptom among Canadian adults contain the major variables shown in the following table. We mainly interested in the Measures which is the response variable. The data is grouped by sex and age groups. The value shows the percentage of responses within each specific group.The original data provided the confidence intervals in the assessment of point estimates in case of high variability in the data. 
 
-# Create HTML table
-kable(data_dictionary, "html") %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
-```
 ```{r}
+DataDict_data <- LongTerm[,c(1,2,4,5,6,7,8,14,18)]
+
+DataDict<-data.frame(
+  Variables=colnames(DataDict_data),   
+  Type=sapply(DataDict_data, function(x) class(x)),
+  Example=sapply(DataDict_data, function(x) paste(as.character(head(unique(x),2)), collapse = ", ")),
+  Number.Unique=sapply(DataDict_data, function(x) length(unique(x))),
+  PctMissing=sapply(DataDict_data, function(x) paste0(round(sum(is.na(x))/length(x), 4)*100,"%")),
+  Comment=c("Reference Year (2022)",
+                  "Geographic Location (Canada)",
+                  "Does the respondent have the long term symptoms? Yes or No.",
+                  "Sex Category",
+                  "Age Groups",
+                  "Characteristics of the value, estimate or confidence interval",
+                  "Unit of Measure (Percentage of the group)",
+                  "Data Value",
+                  "Number of Decimal Places in Value")
+)
+DataDict%>%gt()%>%tab_header(
+    title = "Table (): Long Term Symptoms Data Definition")
+```
+
+As the data of COVID-19 long term symptom among Canadian adults did not contain the population size and population for each groups. We estimate the counts from the data of Weekly number of COVID-19 cases in Canada as of October 28, 2023. From the data of overall COVID-19 cases, we first grouped the data to the similar structure as our Long Term Symptom data. The data of other genders was dropped because that the count is too small comparing to the total population.
+```{r}
+#group the longterm data and drop variables not used in the analysis
 grouped_data <- LongTerm %>%
   filter(Characteristics == 'Percent') %>%
   group_by(Sex, Age.group, Measures) %>%
   summarise(VALUE, .groups = 'drop') %>% 
   spread(Measures, VALUE)
-```
 
-As the data of COVID-19 long term symptom among Canadian adults did not contain the population size and population for each groups. We estimate the counts from the data of Weekly number of COVID-19 cases in Canada as of October 28, 2023. From the data of overall COVID-19 cases, we first grouped the data to the similar structure as our Long Term Symptom data. The data of other genders was dropped because that the count is too small comparing to the total population.
-```{r}
-cleaned_data <- AgeGenderTotal %>%
+#clean the covid cases data by age and gender
+cleaned_data <- Covid_aG %>%
   select(-rate_per_100000) %>%
   filter(status != 'deaths', 
          age_group != 'all', 
@@ -87,6 +104,7 @@ cleaned_data <- AgeGenderTotal %>%
          gender != 'other') %>%
   na.omit()
 
+#match the age groups categories with longterm
 map_age_group <- function(age_group) {
   case_when(
     age_group %in% c("20 to 29", "30 to 39") ~ "Ages 18 to 34",
@@ -97,7 +115,7 @@ map_age_group <- function(age_group) {
   )
 }
 
-
+#match the sex categories
 summary_data <- cleaned_data %>%
   mutate(age_group = map_age_group(age_group)) %>%
   mutate(gender = case_when(
@@ -109,6 +127,7 @@ summary_data <- cleaned_data %>%
   group_by(gender,age_group) %>%
   summarise(count = sum(count), .groups = 'drop')
 
+#total for ages
 ages_18_and_over <- summary_data %>%
   group_by(gender) %>%
   summarise(count = sum(count), .groups = 'drop') %>%
@@ -116,6 +135,7 @@ ages_18_and_over <- summary_data %>%
 
 summary_data <- bind_rows(summary_data, ages_18_and_over)
 
+#both sexes
 both_sexes_data <- summary_data %>%
   filter(gender %in% c('Males', 'Females')) %>%
   group_by(age_group) %>%
@@ -127,15 +147,52 @@ final_summary_data <- final_summary_data %>%
   arrange(gender, age_group) %>%
   rename(Sex = gender, Age.group = age_group)
 
+#combine longterm proportion data with the group counts
 combined_data <- left_join(grouped_data, final_summary_data, by = c("Sex", "Age.group"))
 ```
 
-The data is first grouped by sex which consists of "males", "females", and "Both sexes". "Both sexes" group contain the combined data from both males and females. Then the data is further grouped by age groups. Subgroup "Ages 18 and over" has the total count for the corresponding sex group. Counts for specific responses "Yes, had long-term symptoms" and "No, did not have long-term symptoms" are estimated using the corresponding proportion and the total counts of each subgroup. 
+The data is first grouped by sex which consists of "males", "females", and "Both sexes". "Both sexes" group contain the combined data from both males and females. Then the data is further grouped by age groups. Subgroup "Ages 18 and over" has the total count for the corresponding sex group. The data is shown in the Table()
+```{r}
+gt_table <- combined_data %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table ():Combined Data Showing Proportions and Counts by Sex and Age**")
+  ) %>%
+  cols_label(
+    Sex = "Sex",
+    `Age.group` = "Age Group",
+    `Yes, had long-term symptoms` = "Yes, had long-term symptoms (Percent)",
+    `No, did not have long-term symptoms` = "No, did not have long-term symptoms (Percent)",
+    count = "Count"
+  ) %>%
+  tab_style(
+    style = list(
+      cell_borders(sides = "bottom", weight = px(2))
+    ),
+    locations = cells_body(
+      rows = combined_data$Sex != dplyr::lead(combined_data$Sex)
+    )
+  ) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "lightgrey"), 
+      cell_text(weight = "bold")
+    ),
+    locations = cells_column_labels(columns = TRUE)
+  ) %>%
+  tab_style(
+    style = cell_text(align = "center"), 
+    locations = cells_body(columns = c(3,4))
+  )
 
-We wan to first study the association between age groups and the long term symptoms. A Chi-square test was conducted within each sex group. The hypothesis of independence corresponds to $H_0:p_{ij}=p_{i\cdot}p_{\cdot j}, \forall i,j$. Here under each sex group, we have row variable as the age groups,  column variable as the response of long term symptoms. Test results are shown in the following table.
+invisible(print(gt_table))
+```
+From the Table(), we find that for females, higher proportion(24.4%) of respondents from age 65 and over reported long term symptoms. While males from ages 18 to 34 show a higher proportion(13%) to report long term symptoms. Overall(both sexes), higher proportion(17.8%) of adults from ages 65 and over reported long term symptoms. For all age groups, 20.1% of females reported long term symptoms comparing to only 12% of males.
+
+To study the association between age groups and the long term symptoms, A Chi-square test was conducted within each sex group. The hypothesis of independence corresponds to $H_0:p_{ij}=p_{i\cdot}p_{\cdot j}, \forall i,j$. Here under each sex group, we have row variable as the age groups,  column variable as the response of long term symptoms. Counts for specific responses "Yes, had long-term symptoms" and "No, did not have long-term symptoms" are estimated using the corresponding proportion and the total counts of each subgroup. Test results are shown in the following table.
 ```{r}
 library(broom)
-perform_chi_square <- function(data) {
+perform_chi_square1 <- function(data) {
   filtered_data <- filter(data, `Age.group` != "Ages 18 and over")
 
   contingency_table <- filtered_data %>%
@@ -143,27 +200,99 @@ perform_chi_square <- function(data) {
     mutate(No = (100 - `Yes, had long-term symptoms`) * count / 100,
            Yes = `Yes, had long-term symptoms` * count / 100) %>%
     select(-`Yes, had long-term symptoms`) %>%
-    group_by(`Age.group`) %>%
-    summarise(No = sum(No), Yes = sum(Yes))
+    group_by(`Age.group`)
 
   chi_square_result <- chisq.test(contingency_table[-1])
   
   return(chi_square_result)
 }
 
-results <- list()
+results1 <- list()
 sexes <- c("Males", "Females", "Both sexes")
 for (sex in sexes) {
   filtered_data <- combined_data %>% filter(Sex == sex)
-  results[[sex]] <- perform_chi_square(filtered_data)
+  results1[[sex]] <- perform_chi_square1(filtered_data)
 }
 
-test_results <- lapply(results, tidy) %>% bind_rows() %>% mutate(Sex = sexes)
-test_results <- select(test_results, Sex, statistic, p.value)
+test_results1 <- lapply(results1, tidy) %>% bind_rows() %>% mutate(Sex = sexes)
+test_results1 <- select(test_results1, Sex, statistic, p.value)
 
-print(test_results)
+significance_level <- 0.05
+
+result_table1 <- test_results1 %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table():Chi-Squared Test Results of Age groups and Long term symptoms**")
+  ) %>%
+  cols_label(
+    Sex = "Sex",
+    statistic = "Chi-Squared Statistic",
+    p.value = "P-Value"
+  ) %>%
+  fmt_number(
+    columns = vars(statistic, p.value),
+    decimals = 3
+  ) %>%
+  fmt(
+    columns = vars(p.value),
+    fns = function(x) {
+      ifelse(x < significance_level, paste("<", significance_level), sprintf("%.3f", x))
+    }
+  )
+
+invisible(print(result_table1))
 ```
+```{r}
+perform_chi_square2 <- function(data, age_group) {
+  filtered_data <- data %>%
+    filter(`Age.group` == age_group, Sex != "Both sexes")
 
+  contingency_table <- filtered_data %>%
+    select(Sex, `Yes, had long-term symptoms`, count) %>%
+    mutate(No = (100 - `Yes, had long-term symptoms`) * count / 100,
+           Yes = `Yes, had long-term symptoms` * count / 100) %>%
+    select(-`Yes, had long-term symptoms`) %>%
+    group_by(Sex) %>%
+    summarise(No = sum(No), Yes = sum(Yes))
+
+  chi_square_result <- chisq.test(contingency_table[-1])
+
+  return(chi_square_result)
+}
+
+age_groups <- unique(combined_data$`Age.group`[combined_data$`Age.group` != "Ages 18 and over"])
+
+results2 <- list()
+for (age_group in age_groups) {
+  results2[[age_group]] <- perform_chi_square2(combined_data, age_group)
+}
+
+test_results2 <- lapply(results2, tidy) %>% bind_rows() %>% mutate(`Age.group` = age_groups)
+test_results2 <- select(test_results2, `Age.group`, statistic, p.value)
+
+result_table2 <- test_results2 %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table():Chi-Squared Test Results of Sex and Long term symptoms**")
+  ) %>%
+  cols_label(
+    `Age.group` = "Age Group",
+    statistic = "Chi-Squared Statistic",
+    p.value = "P-Value"
+  ) %>%
+  fmt_number(
+    columns = vars(statistic),
+    decimals = 3
+  ) %>%
+  fmt(
+    columns = vars(p.value),
+    fns = function(x) {
+      ifelse(x < 0.05, paste("< 0.05"), sprintf("%.3f", x))
+    }
+  )
+
+invisible(print(result_table2))
+```
 prop test? fisher test? G-test?
 
 ## Section 3: Prevalence Modeling
