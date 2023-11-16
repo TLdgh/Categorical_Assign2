@@ -5,8 +5,10 @@ author:
 - Zhize Lu(300075114)
 - Chutong Zhang(300311325)
 output: 
-  bookdown::html_document2:
-    toc: true
+  html_notebook: 
+    toc: yes
+    number_sections: yes
+    fig_caption: yes
 header-includes:
 - \renewcommand{\and}{\\}
 - \usepackage{float}
