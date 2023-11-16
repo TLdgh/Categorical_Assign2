@@ -59,7 +59,8 @@ In this assignment, we looked into the COVID-19 epidemiology data sets provided 
 
 ## Section 1: Mortality
 We used two data sets to explore the relationship between COVID-19 and the mortality in Canada. First data set is focus on the COVID-19 cases and death published by government of Canada to explore the number of new infections and deaths numbers in Canada and updates every Monday morning from Feb.01，2020 to Oct.28, 2023. 
-This data set contains 2940 observations of 23 variables with the 
+
+This data set contains 2940 observations of 23 variables,including the total number of COVID-19 infections and deaths and their rates from January 2020 until the end of the reporting week, weekly and bi-weekly number of infection and deaths and their rates. Additionally, it includes the average daily death counts and rates derived from both weekly and bi-weekly data. In this section, our analysis emphasizes variables that pertain to both weekly and overall data. The data dictionary detailing the selected variables is provided below.
 ```{r}
 #data dictionary:Covid cases and death
 COVID<-Covid%>%
@@ -86,7 +87,9 @@ CovidDD%>%
     title = "Table 2.1.1: COVID-19 Cases and Death Data Dictionary")
 
 ```
-Second data set is the provisional weekly death counts, by ages and sex from 2010 to 2023, published by StatCan. this data set record the 149730 observations of 17 variables that are relevant for monitoring the impacts of COVID-19 on mortality in Canada.
+From the Table 2.1.1, we found that the percentage of missing value in weekly cases and death counts are abound 10%, which is not good for our research. 
+
+Second data set is the provisional weekly death counts, by ages and sex from 2010 to 2023, published by Statistics Canada. This data set record the 149730 observations of 17 variables that are relevant for monitoring the impacts of  mortality the province and territory in Canada. We also deleted some variables which are irrelevant with our study or can not delivered the useful information in this data set. Such as variables like STATUS and TERMINATED are missing in all observation in this data set and variables DECIMALS and UOM_ID are the same for all variables. The data dictionary for remaining variables is provided below.
 ```{r}
 #data dictionary:Weekly mortality
 mortality<-WMortality%>%
@@ -111,8 +114,8 @@ data.frame(
 
 
 ```
-In order to have better understanding about the mortality in Canada, we visualize the weekly death counts every year form 2010 to 2023 in Figure(), it is clear to see that the  the number of annual
-deaths is increasing every year. The overall trend from 2010 to 2019 is similar, with an general  decrease from the begging to the middle of the year then followed by an upward trend until the year end. In the middle of 2020 and the beginning of 2022, there exist two significant spikes on the figure. These pronounced increases in case counts raise the possibility that they may be attributed to distinct outbreaks of the epidemic. 
+In order to have better understanding about the mortality in Canada, we visualize the weekly death counts every year form 2010 to 2023 in Figure(), it is clear to see that the  the number of annual deaths is increasing every year. The overall trend from 2010 to 2019 is similar, with an general  decrease from the begging to the middle of the year then followed by an upward trend until the year end. In the middle of 2020 and the beginning of 2022, there exist two significant spikes on the figure. These pronounced increases in case counts raise the possibility that they may be attributed to distinct outbreaks of the epidemic. 
+
 To verify this conjecture, we showed the weekly number of death without the COVID-19 cases in Figure(). The spikes in 2020 and 2022 are removed but the small spike in mid-2021 still exist. So death counts rapid increase in 2020 and 2022 may caused by COVID-19 and we will discuss the probability of  COVID-19 deaths in the total number of death condition on year in the following section.
 ```{r}
 #vizualize the death with and without covid
@@ -121,7 +124,7 @@ WMortality%>%
   mutate(Year=factor(Year))%>%
   filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
   plot_ly(x=~Week, y=~VALUE, color=~Year,type = "scatter", mode="lines")%>%
-  layout(title = 'Figure2.1.1:Weekly Death Counts', yaxis = list(title = "Number of Death"))
+  layout(width = 1000, height = 500,title = 'Figure2.1.1:Weekly Death Counts', yaxis = list(title = "Number of Death"))
 ```
 
 
@@ -147,7 +150,7 @@ WOMortality<-WMortality%>%
 WOMortality%>%
   mutate(Death_without_covid=VALUE-numdeaths_last7)%>%
   plot_ly( x=~Week, y=~Death_without_covid, color=~factor(Year),type = "scatter", mode="lines")%>%
-layout(title = 'Figure2.1.2:Weekly Death Counts without COIVD cases',yaxis = list(title = "Number of Death without COVID"))
+layout(width = 900, height = 500, title = 'Figure2.1.2:Weekly Death Counts without COIVD cases',yaxis = list(title = "Number of Death without COVID"))
 ```
 
 ## Section 2: Long-term Impact
@@ -211,6 +214,7 @@ Chi%>%
   )
 ```
 The Chi-squares statistics computed by Chi-squared test and Likelihood ratio test is different but the p-value is less than 0.05 in both test. Thus we reject the null hypothesis under the 0.05 level since there have  strong evidence that exist significant difference in probability in COVID-19 death probability condition on years.
+
 Then we can compute the relative risk and odds ratio for years to measure the association between years and COVID-19 death proportion. We chose the COVID-19 death proportion in 2020 year as baseline category and compute the relative risks and odds ratios.
 
 ```{r}
