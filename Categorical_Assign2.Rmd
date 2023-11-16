@@ -171,7 +171,7 @@ tbl%>%gt()%>%tab_header(
 To test the homogeneity for COVID-19 death probability condition on years, we can use the Chi-square test and the null hypothesis of homogeneity corresponding to:
 $H_0:P_{j|i}=P_{·j} $
 The alternative hypothesis is:
-$H_0:P_{j|i}\neq P_{·j} $
+$H_1:P_{j|i}\neq P_{·j} $
 
 ```{r}
 # table(chi-square) test homogeneity 
@@ -183,21 +183,57 @@ ntbls= cbind(c("2020","2021","2022","2023"),ntbl)
   colnames(ntbls)<-c("Year","Covid", "Not Covid")
 ntbls%>%
   gt()%>%tab_header(
-    title = "Table 3.1.2: Contingency table for death counts ")
-  chisq.test(ntbl)
+    title = "Table 3.1.2: Contingency table for death counts")
+chi_square<-c(chisq.test(ntbl)$statistic ,GTest(ntbl)$statistic)
+p_value<-c(chisq.test(ntbl)$p.value,GTest(ntbl)$p.value)
+test<-c("Chi-squated test","Likelihood ratio test")
+  Chi<-data.frame(test,chi_square,p_value)
+significance_level <- 0.05
+Chi%>%
+   gt() %>%
+  tab_header(
+    title = "Table3.1.3:Result for test homogeneity between COVID-19 death and Year"
+  ) %>%
+   cols_label(
+   chi_square = "Chi-Squared Statistic",
+    p_value = "P-Value",
+    test="Test"
+  ) %>%
+  fmt(
+    columns = vars(p_value),
+    fns = function(x) {
+      ifelse(x < significance_level, paste("<", significance_level), sprintf("%.3f", x))
+    }
+  )
 ```
-
+The Chi-squares statistics computed by Chi-squared test and Likelihood ratio test is different but the p-value is less than 0.05 in both test. Thus we reject the null hypothesis under the 0.05 level since there have  strong evidence that exist significant difference in probability in COVID-19 death probability condition on years.
+Then we can compute the relative risk and odds ratio for years to measure the association between years and COVID-19 death proportion. We chose the COVID-19 death proportion in 2020 year as baseline category and compute the relative risks and odds ratios.
 
 ```{r}
-OR21=tbl[1,1]*tbl[2,2]/(tbl[1,2]*tbl[2,1])
-OR22=tbl[1,1]*tbl[3,2]/(tbl[1,2]*tbl[3,1])
-OR23=tbl[1,1]*tbl[4,2]/(tbl[1,2]*tbl[4,1])
+#Relative Risk
+Tbl<-as.matrix(tbl[,c(2,3)])
+RR21=round(Tbl[2,1]/Tbl[1,1],4)
+RR22=round(Tbl[3,1]/Tbl[1,1],4)
+RR23=round(Tbl[4,1]/Tbl[1,1],4)
+RRtbl<-data.frame("Relative risk",RR21,RR22,RR23)
+colnames(RRtbl)<-c("Year", "2021", "2022","2023")
+RRtbl%>%gt()%>%tab_header(
+    title = "Table 3.1.4: Relative risks for three years")
+```
+Table 3.1.4 showed the Relative risks in 2021,2022 and 2023. We can see that relative risks in 2021,and 2023 are less than 1, we can concluded that if a people died in COVID-19, this people is more likely died in 2020 than 2021 and 2023. The relative risk in 2022 are greater than 1, we can concluded that if a people died in COVID-19, this people is more likely died in 2022 than 2020.
+
+```{r}
+#Odds ratios
+Tbl<-as.matrix(tbl[,c(2,3)])
+OR21=Tbl[1,1]*Tbl[2,2]/(Tbl[1,2]*Tbl[2,1])
+OR22=Tbl[1,1]*Tbl[3,2]/(Tbl[1,2]*Tbl[3,1])
+OR23=Tbl[1,1]*Tbl[4,2]/(Tbl[1,2]*Tbl[4,1])
 ORtbl<-data.frame("Odds Ratio",OR21,OR22,OR23)
 colnames(ORtbl)<-c("Year", "2021", "2022","2023")
 ORtbl%>%gt()%>%tab_header(
-    title = "Table 3.1.2: Odds ratio for three years")
+    title = "Table 3.1.5: Odds ratio for three years")
 ```
-From Table 3.1.2, we can see that the odds ratio for all three years are not equal to 1, which indicated that there exists association between year and COVID-19 death proportion  
+From Table 3.1.5, we can see that the odds ratios for all three years are not equal to 1, which indicated that there exists association between year and COVID-19 death proportion. For odds ratios in 2021 and 2023, there exist positive association between probability of death caused by COVID-19. The association in 2022 is negative between proportion of COVID-19 death in total death.   
 
 ## Section 2: Long-term Impact
 
