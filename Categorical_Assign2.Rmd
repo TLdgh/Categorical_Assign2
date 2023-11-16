@@ -61,7 +61,9 @@ In this assignment, we looked into the COVID-19 epidemiology data sets provided 
 
 ## Long-term Impact
 
-The data of COVID-19 long term symptom among Canadian adults contain the major variables shown in the following table. We mainly interested in the Measures which is the response variable. The data is grouped by sex and age groups. The value shows the percentage of responses within each specific group.The original data provided the confidence intervals in the assessment of point estimates in case of high variability in the data. 
+The data of COVID-19 long term symptom among Canadian adults is from the Canadian COVID-19 Antibody and Health Survey (CCAHS) Cycle2. The survey collected the data over 3 collection periods between April 2022 and August 2022. The target population for this survey was adults 18 years of age and older living in the 10 provinces across Canada. Respondents who reported experiencing symptoms at least three months after a positive COVID-19 test were considered to have long-term symptoms.[@LongTerm] The long term symptoms data used in this study has been pre-processed by Statistics Canada. It is grouped by sex and age groups. The measure is binary response from the respondents. The value shows the percentage of responses within each specific group. The confidence intervals are provided in the assessment of point estimates in case of high variability in the data. 
+
+The definition of main variables in the data is shown in following Table 2.2.1.
 
 ```{r}
 DataDict_data <- LongTerm[,c(1,2,4,5,6,7,8,14,18)]
@@ -83,8 +85,74 @@ DataDict<-data.frame(
                   "Number of Decimal Places in Value")
 )
 DataDict%>%gt()%>%tab_header(
-    title = "Table (): Long Term Symptoms Data Definition")
+    title = "Table 2.2.1: Long Term Symptoms Data Definition")
 ```
+
+In the study, we dropped variables like "REF_DATE", "GEO" which contain the survey information and are the same across the entire data. A data of current COVID-19 cases in Canada [@COVIDCASE_AG] was used to estimate the missing variables necessary for the test we applied in later Section 3.2.
+
+## Prevalence Modeling
+
+We used the Canadian COVID-19 Antibody and Health Survey (CCAHS) Cycle 1 microdata in modeling the prevelance. The CCAHS is collecting key information relevant to the pandemic to learn as much as possible about the virus, how it affects overall health, how it spreads, and whether Canadians are developing antibodies against it. [@CCAHS] The survey contained two parts, an electronic questionnaire and an at-home blood test. The questionnaire aimed to get general health and exposure conditions of participants, whereas the blood test was used to determine the presence of COVID-19 antibodies.
+
+The survey was designed as cross-sectional and was given to individuals over 1 years old, excluding the population in remote areas of Canada. The data were sampled randomly from 30 strata created from each province. Due to the various size of the population of each stratum, Statistics Canada had to adjust the sample size in those strata with a larger population and higher proportion of COVID confirmed cases, ensuring a precise estimate of the prevalence. In addition, a two-stage sampling method was done at the household level, from which one of the household members was selected for the survey. In total, a sample size of 47900 people were selected and about 23.0% responded completely the survey.
+
+The resulted data contained 10978 number of responses and 99 variables. Due to the large size of the number of variables, we only selected the ones that we were mostly interested in. We believed that the selected variables were most likely significant in modeling the prevalence before attempting to look into the data. After all, a variable showing if the respondent had a family doctor or not might be less likely to affect the prevalence than a variable showing the vaccination status. However, one must note that there might be predictors that could indirectly affect the response variable. For example, one could find the variable showing the response to the following question: "What are the reasons you would not get the COVID-19 vaccine? - Do not consider it necessary to get the vaccine". This variable might have influence on the prevalence because no vaccine was given to the respondent. However, we thought that it was rather less informative because the information was already reflected in vaccination status. Therefore, we only chose those variables that can have a direct impact on the prevalence. Moreover, variables could have invalid categories like "Valid skip" or "Not stated". These categories were present due to regulation and law reinforcement, and the survey is designed entirely voluntary. Therefore these categories were treated by us as missing data. Any variable with a high percentage of missing values (>25%) were dropped. 
+
+We gave a data definition in Table 2.3.1 below. 
+
+```{r}
+RegressionData<-CCAHS%>%transmute(Covid_Status=case_when(CS_35==1 ~ "Yes", CS_35==2 ~ "No", .default = NA),
+                                  chronic=case_when(CHRGNUM==0 ~ "No", CHRGNUM==9 ~ NA, .default = "Yes"),
+                                  DirectContact=case_when(RA_10==2 ~ "Yes", RA_10==9 ~ NA, .default = "No"),
+                                  Smoke=case_when(RA_35==1 ~ "Yes", RA_35==2 ~ "No", .default = NA),
+                                  WashHand=case_when(HB_20A==1~"Always",HB_20A==2~"Often",HB_20A==3~"Occasionally",HB_20A==4~"Never",.default = NA),
+                                  WearMask=case_when(HB_20B==1~"Always",HB_20B==2~"Often", HB_20B==3~"Occasionally", HB_20B==4~"Never",.default = NA),
+                                  Keep2m=case_when(HB_20D==1~"Always",HB_20D==2~"Often", HB_20D==3~"Occasionally", HB_20D==4~"Never",.default = NA),
+                                  AvoidCrowds=case_when(HB_20E==1~"Always",HB_20E==2~"Often", HB_20E==3~"Occasionally", HB_20E==4~"Never",.default = NA),
+                                  FluVac=case_when(FLU_05==1~"Yes",FLU_05==2~"No",.default = NA),
+                                  VaccineStatus=case_when(VXD05==1 ~ "Yes", VXD05==2 ~ "No", .default = NA),
+                                  Sex=case_when(GDR_05==9~NA, .default = GDR_05),
+                                  Age=case_when(AGEGRP==9~NA,.default = AGEGRP),
+                                  NumHouse=case_when(HHCDV==9~NA,.default = HHCDV),
+                                  AntiBodyResult=factor(case_when(LABDCOVD==1~"Positive",LABDCOVD==2~"Negative",LABDCOVD==3~"Indeterminate"), levels = c("Negative", "Indeterminate", "Positive"))
+)%>%
+  mutate(across(c(Covid_Status, chronic, DirectContact, Smoke, FluVac, VaccineStatus), ~factor(., levels = c("No", "Yes"))))%>%
+  mutate(across(c(WashHand, WearMask, Keep2m, AvoidCrowds), ~factor(., levels = c("Never", "Occasionally","Often", "Always"))))%>%
+  mutate(across(c(Sex, Age, NumHouse), factor))
+ 
+
+DataDict<-data.frame(
+  Variables=colnames(RegressionData),   
+  Type=sapply(RegressionData, function(x) class(x)),
+  Example=sapply(RegressionData, function(x) paste(as.character(head(unique(x),2)), collapse = ", ")),
+  Number.Unique=sapply(RegressionData, function(x) length(unique(x))),
+  PctMissing=sapply(RegressionData, function(x) paste0(round(sum(is.na(x))/length(x), 4)*100,"%")),
+  Comment=c("Had the respondent ever had a positive test result?",
+                  "Had the respondent reported having chronic condition?",
+                  "In the last six months, had the respondent worked in direct contact with people?",
+                  "Does the respondent currently smoke tobacco?",
+                  "Wash hands often?",
+                  "Wear a mask in indoor public spaces where physical distancing is difficult or a mandatory mask by-law exists?",
+                  "Keep a 2 meter or 6 foot distance from others?",
+                  "Avoid crowds and large gatherings?",
+                  "In the past 12 months, have you had a seasonal flu vaccine?",
+                  "Received at least one vaccine dose against COVID-19?",
+                  "Sex: 1 - Male, 2 - Female",
+                  "Age group: 1-19, 20-39, 40-59, 60 and older",
+                  "Number of people living in household: 1, 2, 3, and 4 or more",
+                  "The overall interpretation of the laboratory result is that if 0 of 3 antigen tests was positive, the respondent had an overall negative test for antibodies against SARS-CoV-2, if 1 of 3 antigen tests was positive, the respondent had an overall indeterminate test for antibodies against SARS-CoV-2, and if 2 or more of 3 antigen tests were positive, the respondent had an overall positive test for antibodies against SARS-CoV-2.")
+)
+DataDict%>%gt()%>%tab_header(
+    title = "Table 2.3.1: COVID Status Data Definition")
+```
+
+To fully understand the relationship between the response variable Covid_Status with other predictors, we fitted logistic models in Section 3.3 and provided additional inferences. 
+
+# Result
+
+## Mortality
+
+## Long-term Impact
 
 As the data of COVID-19 long term symptom among Canadian adults did not contain the population size and population for each groups. We estimate the counts from the data of Weekly number of COVID-19 cases in Canada as of October 28, 2023. From the data of overall COVID-19 cases, we first grouped the data to the similar structure as our Long Term Symptom data. The data of other genders was dropped because that the count is too small comparing to the total population.
 ```{r}
@@ -151,12 +219,12 @@ final_summary_data <- final_summary_data %>%
 combined_data <- left_join(grouped_data, final_summary_data, by = c("Sex", "Age.group"))
 ```
 
-The data is first grouped by sex which consists of "males", "females", and "Both sexes". "Both sexes" group contain the combined data from both males and females. Then the data is further grouped by age groups. Subgroup "Ages 18 and over" has the total count for the corresponding sex group. The data is shown in the Table()
+The data is first grouped by sex which consists of "males", "females", and "Both sexes". "Both sexes" group contain the combined data from both males and females. Then the data is further grouped by age groups. Subgroup "Ages 18 and over" has the total count for the corresponding sex group. The proportion table with total count of subgroups is shown in the Table 3.2.1 below.
 ```{r}
 gt_table <- combined_data %>%
   gt() %>%
   tab_header(
-    title = md("**Table ():Combined Data Showing Proportions and Counts by Sex and Age**")
+    title = md("**Table 3.2.1:Combined Data Showing Proportions and Counts by Sex and Age**")
   ) %>%
   cols_label(
     Sex = "Sex",
@@ -187,19 +255,24 @@ gt_table <- combined_data %>%
 
 invisible(print(gt_table))
 ```
-From the Table(), we find that for females, higher proportion(24.4%) of respondents from age 65 and over reported long term symptoms. While males from ages 18 to 34 show a higher proportion(13%) to report long term symptoms. Overall(both sexes), higher proportion(17.8%) of adults from ages 65 and over reported long term symptoms. For all age groups, 20.1% of females reported long term symptoms comparing to only 12% of males.
+From the Table 3.2.1, we find that for females, higher proportion(24.4%) of respondents from age 65 and over reported long term symptoms. While males from ages 18 to 34 show a higher proportion(13%) to report long term symptoms. Overall(both sexes), higher proportion(17.8%) of adults from ages 65 and over reported long term symptoms. For all age groups, 20.1% of females reported long term symptoms comparing to only 12% of males.
 
-To study the association between age groups and the long term symptoms, A Chi-square test was conducted within each sex group. The hypothesis of independence corresponds to $H_0:p_{ij}=p_{i\cdot}p_{\cdot j}, \forall i,j$. Here under each sex group, we have row variable as the age groups,  column variable as the response of long term symptoms. Counts for specific responses "Yes, had long-term symptoms" and "No, did not have long-term symptoms" are estimated using the corresponding proportion and the total counts of each subgroup. Test results are shown in the following table.
+To study the association between age groups and the long term symptoms, A Chi-square test was conducted within each sex group. The hypothesis of independence corresponds to $H_0:p_{ij}=p_{i\cdot}p_{\cdot j}, \forall i,j$. Under each sex group, a $4\times2$ contingency is constructed. We have age groups as the row variable , response of long term symptoms as the column variable. Counts for specific responses "Yes, had long-term symptoms" and "No, did not have long-term symptoms" are estimated using the corresponding proportion and the total counts of each subgroup. 
+
+A similar Chi-square test was applied to test the association between sex and the long term symptoms. Under each age group, a $2\times2$ contingency table is constructed with sex as the row variable and long term symptoms as the column variable. 
+
+Test results are shown in the following table.
 ```{r}
 library(broom)
 perform_chi_square1 <- function(data) {
-  filtered_data <- filter(data, `Age.group` != "Ages 18 and over")
+  filtered_data <- data %>% 
+    filter(`Age.group` != "Ages 18 and over")
 
   contingency_table <- filtered_data %>%
     select(`Age.group`, `Yes, had long-term symptoms`, count) %>%
-    mutate(No = (100 - `Yes, had long-term symptoms`) * count / 100,
-           Yes = `Yes, had long-term symptoms` * count / 100) %>%
-    select(-`Yes, had long-term symptoms`) %>%
+    mutate(No = round((100 - `Yes, had long-term symptoms`) * count / 100),
+           Yes = round(`Yes, had long-term symptoms` * count / 100)) %>%
+    select(-`Yes, had long-term symptoms`,-`count`) %>%
     group_by(`Age.group`)
 
   chi_square_result <- chisq.test(contingency_table[-1])
@@ -222,7 +295,7 @@ significance_level <- 0.05
 result_table1 <- test_results1 %>%
   gt() %>%
   tab_header(
-    title = md("**Table():Chi-Squared Test Results of Age groups and Long term symptoms**")
+    title = md("**Table 3.2.2: Chi-Squared Test Results of Age groups and Long term symptoms**")
   ) %>%
   cols_label(
     Sex = "Sex",
@@ -242,6 +315,8 @@ result_table1 <- test_results1 %>%
 
 invisible(print(result_table1))
 ```
+Table 3.2.2 shows the results of Chi-squared tests comparing the Occurrence of long-term COVID-19 symptoms across different age groups within each sex category and for both sexes combined.For all categories (Males, Females, and Both Sexes), the Chi-squared statistics are high, and the p-values are less than 0.05.This suggests that within each of these categories, there is a statistically significant association between age group and the occurrence of long-term COVID-19 symptoms. The differences in symptom frequencies across age groups are not likely to be due to random chance.
+
 ```{r}
 perform_chi_square2 <- function(data, age_group) {
   filtered_data <- data %>%
@@ -249,22 +324,21 @@ perform_chi_square2 <- function(data, age_group) {
 
   contingency_table <- filtered_data %>%
     select(Sex, `Yes, had long-term symptoms`, count) %>%
-    mutate(No = (100 - `Yes, had long-term symptoms`) * count / 100,
-           Yes = `Yes, had long-term symptoms` * count / 100) %>%
-    select(-`Yes, had long-term symptoms`) %>%
-    group_by(Sex) %>%
-    summarise(No = sum(No), Yes = sum(Yes))
+    mutate(No = round((100 - `Yes, had long-term symptoms`) * count / 100),
+           Yes = round(`Yes, had long-term symptoms` * count / 100)) %>%
+    select(-`Yes, had long-term symptoms`,-`count`) %>%
+    group_by(Sex)
 
   chi_square_result <- chisq.test(contingency_table[-1])
 
   return(chi_square_result)
 }
 
-age_groups <- unique(combined_data$`Age.group`[combined_data$`Age.group` != "Ages 18 and over"])
+age_groups <- unique(combined_data$Age.group)
 
 results2 <- list()
-for (age_group in age_groups) {
-  results2[[age_group]] <- perform_chi_square2(combined_data, age_group)
+for (age in age_groups) {
+  results2[[age]] <- perform_chi_square2(combined_data, age)
 }
 
 test_results2 <- lapply(results2, tidy) %>% bind_rows() %>% mutate(`Age.group` = age_groups)
@@ -273,7 +347,7 @@ test_results2 <- select(test_results2, `Age.group`, statistic, p.value)
 result_table2 <- test_results2 %>%
   gt() %>%
   tab_header(
-    title = md("**Table():Chi-Squared Test Results of Sex and Long term symptoms**")
+    title = md("**Table 3.2.3: Chi-Squared Test Results of Sex and Long term symptoms**")
   ) %>%
   cols_label(
     `Age.group` = "Age Group",
@@ -293,71 +367,48 @@ result_table2 <- test_results2 %>%
 
 invisible(print(result_table2))
 ```
-prop test? fisher test? G-test?
+Table 3.2.3 presents the results of Chi-squared tests comparing the occurrence of long-term COVID-19 symptoms between males and females within each age group.Each age group shows a very high Chi-squared statistic with all p-values being less than 0.05. These results indicate a statistically significant association between sex and the occurrence of long-term COVID-19 symptoms in each age group.
 
-## Prevalence Modeling
-
-We used the Canadian COVID-19 Antibody and Health Survey (CCAHS) Cycle 1 microdata in modeling the prevelance. The CCAHS is collecting key information relevant to the pandemic to learn as much as possible about the virus, how it affects overall health, how it spreads, and whether Canadians are developing antibodies against it. [@CCAHS] The survey contained two parts, an electronic questionnaire and an at-home blood test. The questionnaire aimed to get general health and exposure conditions of participants, whereas the blood test was used to determine the presence of COVID-19 antibodies.
-
-The survey was designed as cross-sectional and was given to individuals over 1 years old, excluding the population in remote areas of Canada. The data were sampled randomly from 30 strata created from each province. Due to the various size of the population of each stratum, Statistics Canada had to adjust the sample size in those strata with a larger population and higher proportion of COVID confirmed cases, ensuring a precise estimate of the prevalence. In addition, a two-stage sampling method was done at the household level, from which one of the household members was selected for the survey. In total, a sample size of 47900 people were selected and about 23.0% responded completely the survey.
-
-The resulted data contained 10978 number of responses and 99 variables. Due to the large size of the number of variables, we only selected the ones that we were mostly interested in. We believed that the selected variables were most likely significant in modeling the prevalence before attempting to look into the data. After all, a variable showing if the respondent had a family doctor or not might be less likely to affect the prevalence than a variable showing the vaccination status. However, one must note that there might be predictors that could indirectly affect the response variable. For example, one could find the variable showing the response to the following question: "What are the reasons you would not get the COVID-19 vaccine? - Do not consider it necessary to get the vaccine". This variable might have influence on the prevalence because no vaccine was given to the respondent. However, we thought that it was rather less informative because the information was already reflected in vaccination status. Therefore, we only chose those variables that can have a direct impact on the prevalence. Moreover, variables could have invalid categories like "Valid skip" or "Not stated". These categories were present due to regulation and law reinforcement, and the survey is designed entirely voluntary. Therefore these categories were treated by us as missing data. Any variable with a high percentage of missing values (>25%) were dropped. 
-
-We gave a data definition in Table 2.3.1 below. 
-
+To further explore the strength of the association. We calculated odds ratios primarily between males and females in each age group. For each age group, the odds of females experiencing long-term symptoms are compared to the odds for males. An OR greater than 1 indicates a higher likelihood for females. The results are shown in Table 3.2.4.
 ```{r}
-RegressionData<-CCAHS%>%transmute(Covid_Status=case_when(CS_35==1 ~ "Yes", CS_35==2 ~ "No", .default = NA),
-                                  chronic=case_when(CHRGNUM==0 ~ "No", CHRGNUM==9 ~ NA, .default = "Yes"),
-                                  DirectContact=case_when(RA_10==2 ~ "Yes", RA_10==9 ~ NA, .default = "No"),
-                                  Smoke=case_when(RA_35==1 ~ "Yes", RA_35==2 ~ "No", .default = NA),
-                                  WashHand=case_when(HB_20A==1~"Always",HB_20A==2~"Often",HB_20A==3~"Occasionally",HB_20A==4~"Never",.default = NA),
-                                  WearMask=case_when(HB_20B==1~"Always",HB_20B==2~"Often", HB_20B==3~"Occasionally", HB_20B==4~"Never",.default = NA),
-                                  Keep2m=case_when(HB_20D==1~"Always",HB_20D==2~"Often", HB_20D==3~"Occasionally", HB_20D==4~"Never",.default = NA),
-                                  AvoidCrowds=case_when(HB_20E==1~"Always",HB_20E==2~"Often", HB_20E==3~"Occasionally", HB_20E==4~"Never",.default = NA),
-                                  FluVac=case_when(FLU_05==1~"Yes",FLU_05==2~"No",.default = NA),
-                                  VaccineStatus=case_when(VXD05==1 ~ "Yes", VXD05==2 ~ "No", .default = NA),
-                                  Sex=case_when(GDR_05==9~NA, .default = GDR_05),
-                                  Age=case_when(AGEGRP==9~NA,.default = AGEGRP),
-                                  NumHouse=case_when(HHCDV==9~NA,.default = HHCDV),
-                                  AntiBodyResult=factor(case_when(LABDCOVD==1~"Positive",LABDCOVD==2~"Negative",LABDCOVD==3~"Indeterminate"), levels = c("Negative", "Indeterminate", "Positive"))
-)%>%
-  mutate(across(c(Covid_Status, chronic, DirectContact, Smoke, FluVac, VaccineStatus), ~factor(., levels = c("No", "Yes"))))%>%
-  mutate(across(c(WashHand, WearMask, Keep2m, AvoidCrowds), ~factor(., levels = c("Never", "Occasionally","Often", "Always"))))%>%
-  mutate(across(c(Sex, Age, NumHouse), factor))
- 
+contingency_tables <- combined_data %>%
+  #filter(`Age.group` != "Ages 18 and over") %>%
+  filter( Sex != "Both sexes") %>%
+  select(`Sex`, `Age.group`, `Yes, had long-term symptoms`, count) %>%
+  mutate(No = round((100 - `Yes, had long-term symptoms`) * count / 100),
+         Yes = round(`Yes, had long-term symptoms` * count / 100)) %>%
+  select(-`Yes, had long-term symptoms`, -count) %>%
+  pivot_longer(cols = c("Yes", "No"), names_to = "Response", values_to = "Count") %>%
+  group_by(`Age.group`, `Sex`, Response) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "Response", values_from = "Count")
 
-DataDict<-data.frame(
-  Variables=colnames(RegressionData),   
-  Type=sapply(RegressionData, function(x) class(x)),
-  Example=sapply(RegressionData, function(x) paste(as.character(head(unique(x),2)), collapse = ", ")),
-  Number.Unique=sapply(RegressionData, function(x) length(unique(x))),
-  PctMissing=sapply(RegressionData, function(x) paste0(round(sum(is.na(x))/length(x), 4)*100,"%")),
-  Comment=c("Had the respondent ever had a positive test result?",
-                  "Had the respondent reported having chronic condition?",
-                  "In the last six months, had the respondent worked in direct contact with people?",
-                  "Does the respondent currently smoke tobacco?",
-                  "Wash hands often?",
-                  "Wear a mask in indoor public spaces where physical distancing is difficult or a mandatory mask by-law exists?",
-                  "Keep a 2 meter or 6 foot distance from others?",
-                  "Avoid crowds and large gatherings?",
-                  "In the past 12 months, have you had a seasonal flu vaccine?",
-                  "Received at least one vaccine dose against COVID-19?",
-                  "Sex: 1 - Male, 2 - Female",
-                  "Age group: 1-19, 20-39, 40-59, 60 and older",
-                  "Number of people living in household: 1, 2, 3, and 4 or more",
-                  "The overall interpretation of the laboratory result is that if 0 of 3 antigen tests was positive, the respondent had an overall negative test for antibodies against SARS-CoV-2, if 1 of 3 antigen tests was positive, the respondent had an overall indeterminate test for antibodies against SARS-CoV-2, and if 2 or more of 3 antigen tests were positive, the respondent had an overall positive test for antibodies against SARS-CoV-2.")
-)
-DataDict%>%gt()%>%tab_header(
-    title = "Table 2.3.1: COVID Status Data Definition")
+contingency_tables <- contingency_tables %>%
+  mutate(Odds = Yes / No)
+
+odds_ratios <- contingency_tables %>%
+  group_by(Age.group) %>%
+  summarise(OddsRatio = Odds[Sex == "Females"] / Odds[Sex == "Males"]) %>%
+  ungroup()
+
+OR_table <- odds_ratios %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table 3.2.4: Odds Ratios of Long-term COVID-19 Symptoms: Females vs Males by Age Group**")
+  ) %>%
+  cols_label(
+    Age.group = "Age Group",
+    OddsRatio = "Odds Ratio"
+  ) %>%
+  fmt_number(
+    columns = vars(OddsRatio),
+    decimals = 3
+  )
+
+invisible(print(OR_table))
+
 ```
-
-To fully understand the relationship between the response variable Covid_Status with other predictors, we fitted logistic models in Section 3.3 and provided additional inferences. 
-
-# Result
-
-## Mortality
-
-## Long-term Impact
+Across all age groups, females are consistently more likely than males to report long-term COVID-19 symptoms, as indicated by odds ratios greater than 1 in each category. The odds ratios seem to increase with age. The highest disparity between females and males is observed in the oldest age group (Ages 65 and over).
 
 ## Prevalence Modeling
 
@@ -438,6 +489,8 @@ glm(Covid_Status~WashHand+WearMask+Keep2m+AvoidCrowds, data=Xy2, family = "binom
 ## Mortality
 
 ## Long-term Impact
+
+
 
 ## Prevalence Modeling
 
