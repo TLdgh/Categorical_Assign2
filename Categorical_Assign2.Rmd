@@ -490,7 +490,11 @@ glm(Covid_Status~WashHand+WearMask+Keep2m+AvoidCrowds, data=Xy2, family = "binom
 
 ## Long-term Impact
 
+Based on the results from section 3.2, The Chi-squared tests revealed statistically significant associations between age groups and the occurrence of long-term COVID-19 symptoms within each sex category and between sexes within each age group. The Odds Ratios consistently showed that females are more likely than males to report long-term COVID-19 symptoms in all age groups.This disparity in the likelihood of symptoms appears to increase with age, with the oldest age group (Ages 65 and over) showing the highest Odds Ratio.
 
+Our findings resonate with several clinical studies that have suggested gender difference in the impact of long_COVID-19 syndrome.Specifically, the higher likelihood of long-term symptoms in females is consistent with public health researches that women might experience COVID-19 differently than men.[@Bai2021-vb] However our study is based on aggregated data focusing primarily on the association of sex and age with long-term COVID-19 symptoms. While this provides valuable insights, the data does not include individual patient states that could influence the findings. Moreover, The nature of the data and the analytical methods used (Chi-squared tests and Odds Ratios) are effective for identifying associations but do not establish causation. 
+
+Further studies involving more detailed data should aim to uncover the biological, social, and behavioral mechanisms driving the observed gender differences in long-term COVID-19 symptoms. Some study[@Juszko2022-oq] suggests that psychological factors also have correlation in both women and men with self-reported health after COVID-19. The study clearly indicates a significant gender disparity in the mental health impact of COVID-19 during the recuperation period.
 
 ## Prevalence Modeling
 
@@ -505,6 +509,8 @@ In other words, $e^{\beta_j}$ is the marginal increase/decrease in the odds for 
 From the second model fitting for preventative behaviours, we found that only washing hand was showing a negative effect on the odds of getting COVID. We weren't able to draw any conclusion for other preventative behaviours, but we thought it was inevitably hard to find a relationship between the COVID status and those behaviours because people may not answer the questionnaire accurately. People might find difficult to distinguish the boundary between wearing mask often and always. People can even falsely answer that they keep a distance of 2 metres or more but in reality they have not done so. The resulting answers for the survey therefore may not be as reliable. Thus we thought it is generally difficult to accurately describe the relationship between prevalence of disease and preventative behaviour. Researchers have to design experiments and find ways to quantify the behaviour in order to have more reliable outcomes. 
 
 # Conclusion
+
+we can conclude that there is a significant association between age and gender with the occurrence of long-term COVID-19 symptoms. Notably, females across all age groups, especially those aged 65 and over, are more likely to report these symptoms compared to males.However, it's important to recognize that our study, while highlighting crucial associations, does not delve into the causal mechanisms due to its reliance on aggregated data. This limitation underscores the need for further research with more comprehensive data to explore the underlying biological, social, and psychological factors contributing to these observed differences in long-term COVID-19 symptoms.
 
 We found in Prevalence Modeling section that the COVID status is negatively associated with the vaccination status, indicating that vaccines was a significant factor to lower the prevalence of the virus. We also found but not surprising that the antibody test result was positively related to the COVID status. In addition, we did confirm that washing hands can result in a negative influence on the prevalence of COVID, but we could not find the same conclusion for other preventative behaviours.
 
