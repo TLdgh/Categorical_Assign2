@@ -170,10 +170,12 @@ colnames(tbl)<-c("Year","Covid Death", "Not Covid Death")
 tbl%>%gt()%>%tab_header(
     title = "Table 3.1.1: Contingency table for proportion of COVID-19 death")
 ```
-To test the homogeneity for COVID-19 death probability condition on years, we can use the Chi-square test and the null hypothesis of homogeneity corresponding to:
-$H_0:P_{j|i}=P_{·j} $
-The alternative hypothesis is:
-$H_1:P_{j|i}\neq P_{·j} $
+To test the homogeneity for COVID-19 death probability condition on years, we can use the Chi-square test and the null and alternative hypothesis of homogeneity corresponding to:
+
+\begin{gather*}
+H_0:P_{j|i}\ =\ P_{·j}\\
+H_1:P_{j|i}\neq P_{·j}
+\end{gather*}
 
 ```{r}
 # table(chi-square) test homogeneity 
