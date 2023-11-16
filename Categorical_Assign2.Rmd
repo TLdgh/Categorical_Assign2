@@ -82,11 +82,15 @@ RegressionData<-CCAHS%>%transmute(Covid_Status=case_when(CS_35==1 ~ "Yes", CS_35
                                   AvoidCrowds=case_when(HB_20E==1~"Always",HB_20E==2~"Often", HB_20E==3~"Occasionally", HB_20E==4~"Never",.default = NA),
                                   FluVac=case_when(FLU_05==1~"Yes",FLU_05==2~"No",.default = NA),
                                   VaccineStatus=case_when(VXD05==1 ~ "Yes", VXD05==2 ~ "No", .default = NA),
-                                  Sex=case_when(GDR_05==1 ~ "Male", GDR_05==2 ~ "Female", .default = NA),
-                                  Age=case_when(AGEGRP==1~"1 to 19 years",AGEGRP==2~"20 to 39 years", AGEGRP==3~"40 to 59 years", AGEGRP==4~"60 years or older",.default = NA),
-                                  NumHouse=case_when(HHCDV==1~"One",HHCDV==2~"Two", HHCDV==3~"Three", HHCDV==4~"Four+",.default = NA),
+                                  Sex=case_when(GDR_05==9~NA, .default = GDR_05),
+                                  Age=case_when(AGEGRP==9~NA,.default = AGEGRP),
+                                  NumHouse=case_when(HHCDV==9~NA,.default = HHCDV),
                                   AntiBodyResult=factor(case_when(LABDCOVD==1~"Positive",LABDCOVD==2~"Negative",LABDCOVD==3~"Indeterminate"), levels = c("Negative", "Indeterminate", "Positive"))
-)%>%mutate(across(everything(), factor))
+)%>%
+  mutate(across(c(Covid_Status, chronic, DirectContact, Smoke, FluVac, VaccineStatus), ~factor(., levels = c("No", "Yes"))))%>%
+  mutate(across(c(WashHand, WearMask, Keep2m, AvoidCrowds), ~factor(., levels = c("Never", "Occasionally","Often", "Always"))))%>%
+  mutate(across(c(Sex, Age, NumHouse), factor))
+ 
 
 DataDict<-data.frame(
   Variables=colnames(RegressionData),   
@@ -104,16 +108,16 @@ DataDict<-data.frame(
                   "Avoid crowds and large gatherings?",
                   "In the past 12 months, have you had a seasonal flu vaccine?",
                   "Received at least one vaccine dose against COVID-19?",
-                  "Sex",
-                  "Age group",
-                  "Number of people living in household",
+                  "Sex: 1 - Male, 2 - Female",
+                  "Age group: 1-19, 20-39, 40-59, 60 and older",
+                  "Number of people living in household: 1, 2, 3, and 4 or more",
                   "The overall interpretation of the laboratory result is that if 0 of 3 antigen tests was positive, the respondent had an overall negative test for antibodies against SARS-CoV-2, if 1 of 3 antigen tests was positive, the respondent had an overall indeterminate test for antibodies against SARS-CoV-2, and if 2 or more of 3 antigen tests were positive, the respondent had an overall positive test for antibodies against SARS-CoV-2.")
 )
 DataDict%>%gt()%>%tab_header(
     title = "Table 2.3.1: COVID Status Data Definition")
 ```
 
-To fully understand the relationship between the response variable Covid_Status with other predictors, we fitted a logistic model in Section 3.3 and provided additional inferences. 
+To fully understand the relationship between the response variable Covid_Status with other predictors, we fitted logistic models in Section 3.3 and provided additional inferences. 
 
 # Result
 
@@ -145,10 +149,10 @@ fits%>%gt()%>%tab_header(
   tab_style(style = list(cell_fill(color = "lightblue")), locations = cells_body(rows = 5))
 ```
 
-Our best model had the following coefficients shown in the summary Table 3.3.2, from which we found that the variable FluVac that indicated whether the participant had a flu shot for the past 12 months. The p-value = 0.155 was not significant enough, so we did not have a conclusion on whether the variable was associated with the response.
+Our best model had the following coefficients shown in the summary Table 3.3.2, from which we found that the variable FluVac that indicated whether or not the participant had a flu shot for the past 12 months had a p-value = 0.155 not significant enough, so we did not have a conclusion on whether the variable was associated with the response.
 
 ```{r}
-Models$BestModel%>%stargazer(type = "text", title="Table 3.3.2: Summary", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
+Models$BestModel%>%stargazer(type = "text", title="Table 3.3.2: Summary of Model with Lowest AIC", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
 ```
 
 We looked at the AIC when the flu vaccine status variable was removed. One can see in Table 3.3.3 below that there was not much difference in the AIC value. For model simplicity we therefore omitted the variable. 
@@ -159,7 +163,7 @@ Models$BestModels[1:2,]%>%gt()%>%tab_header(
   tab_style(style = list(cell_fill(color = "lightblue")), locations = cells_body(columns=FluVac))
 ```
 
-Similarly, from summary Table 3.3.2 above we found that the variable DirectContactYes that showed whether the participant had directed contact with people or not also had an unpromising p-value=0.053. We removed the FluVac variable first and compared the models using the deviance. From the following summary Table 3.3.4 one can see that the p-value of the Chi-squared statistic was 0.085, suggesting again that we did not have a conclusion whether or not there was an association between the COVID status and having direct contact with people.
+Similarly, from summary Table 3.3.2 above we found that the variable DirectContact that showed whether the participant had directed contact with people or not also had an unpromising p-value=0.053. After removing the FluVac variable first, we compared the models with and without DirectContact variable using the deviance. From the following summary Table 3.3.4 one can see that the p-value of the Chi-squared statistic was 0.085, suggesting again that we did not have a conclusion whether or not there was an association between the COVID status and having direct contact with people.
 
 ```{r}
 fit1<-glm(y~DirectContact+VaccineStatus+AntiBodyResult, data=Xy, family = "binomial")
@@ -181,12 +185,19 @@ Therefore, we concluded that our model was:
 \ln{(\frac{p_i}{1-p_i})} = -5.565 -4.568 \times \text{VaccineStatusYes}_i +3.392 \times \text{AntiBodyResultIndeterminate}_i +6.602 \times \text{AntiBodyResultPositive}_i
 \end{equation*}
 
-with the following summary information:
+from the following summary Table 3.3.6:
 ```{r}
-fit2%>%stargazer(type = "text", title="Table 3: Summary", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
+fit2%>%stargazer(type = "text", title="Table 3.3.6: Summary of Final Model", dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
 ```
 
-It was not surprising to see that 
+We further did another model estimation for the COVID status and some preventative behaviours like washing hands, wearing masks, keep 2 metres and avoiding crowds. The result in summary Table 3.3.7 showed that only washing hands often an always were significant enough to be negatively related to the COVID status whereas all other covariates were inconclusive.
+
+```{r}
+Xy2<-RegressionData%>%select(Covid_Status, WashHand, WearMask, Keep2m, AvoidCrowds)%>%na.omit()
+glm(Covid_Status~WashHand+WearMask+Keep2m+AvoidCrowds, data=Xy2, family = "binomial")%>%
+  stargazer(type = "text", title="Table 3.3.7: Model Estimates of COVID Status with Preventative Behaviours",dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
+```
+
 
 # Discussion
 
@@ -196,8 +207,18 @@ It was not surprising to see that
 
 ## Prevalence Modeling
 
-From Section 3.3 we have found that the odds ratio of COVID-19 was related to two covariates: the vaccination status and the antibody presented in blood. Specifically, we interpreted the coefficients  
+From Section 3.3 we have found that the odds ratio of COVID-19 was related to two covariates: the vaccination status and the antibody presented in blood. Specifically, we interpreted the coefficients as the log-odds for its corresponding covariate. 
+
+$$
+\ln{OR}=\beta_j, \quad OR:=\frac{p_2(1-p_1)}{p_1(1-p_2)}
+$$
+
+In other words, $e^{\beta_j}$ is the marginal increase/decrease in the odds for a on-unit increase/decrease in the covariate, assuming all other covariates held constant. On the other hand, the constant coefficient $\beta_0$ is interpreted as the log-odds $\ln{(\frac{p_1}{1-p_1})}$ with all covariates unchanged. From our summary Table 3.3.6 one can see that the coefficient for the vaccine status was negative, indicating that the odds of having a positive COVID test decreases if vaccine was given. This result wasn't surprising that the use of vaccines has so far helped the humanity combat this virus. The coefficient for the indeterminate antibody result was positive, and the one for the positive antibody result was even higher. We must point out that one needs to carefully interpret this result. It meant that the odds of getting a positive COVID test is positively correlated with the result of an antibody test. The more positive the antibody test is, the higher the odds of having a positive COVID test as well. However, antibody test and the COVID-19 diagnostic test are not the same thing in the explainations provided by FDA [@Antibody]. The antibody test does not detect the virus. Rather, it merely tells if a person may have had a PRIOR infection, thus it does not reflect if the person is currently infected or not. In addition, the antibody test could show if a person has been vaccinated or not, but in general an antibody test may not detect the kind of antibodies created by vaccines, therefore it depends on the type of antibody test performed. From our result we were only able to say that there was a positive relationship between the COVID diagnostic test and the antibody test, which was not surprising because in order to show positive in an antibody test, one must have had COVID to begin with. This information may be useful, for example, that one of the tests is economically more affordable and can be used as a preliminary screening method.
+
+From the second model fitting for preventative behaviours, we found that only washing hand was showing a negative effect on the odds of getting COVID. We weren't able to draw any conclusion for other preventative behaviours, but we thought it was inevitably hard to find a relationship between the COVID status and those behaviours because people may not answer the questionnaire accurately. People might find difficult to distinguish the boundary between wearing mask often and always. People can even falsely answer that they keep a distance of 2 metres or more but in reality they have not done so. The resulting answers for the survey therefore may not be as reliable. Thus we thought it is generally difficult to accurately describe the relationship between prevalence of disease and preventative behaviour. Researchers have to design experiments and find ways to quantify the behaviour in order to have more reliable outcomes. 
 
 # Conclusion
+
+We found in Prevalence Modeling section that the COVID status is negatively associated with the vaccination status, indicating that vaccines was a significant factor to lower the prevalence of the virus. We also found but not surprising that the antibody test result was positively related to the COVID status. In addition, we did confirm that washing hands can result in a negative influence on the prevalence of COVID, but we could not find the same conclusion for other preventative behaviours.
 
 # References
