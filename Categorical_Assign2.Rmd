@@ -59,10 +59,10 @@ In this assignment, we looked into the COVID-19 epidemiology data sets provided 
 
 # Method
 
-##  Mortality
+## Mortality
 We used two data sets to explore the relationship between COVID-19 and the mortality in Canada. First data set is focus on the COVID-19 cases and death published by government of Canada to explore the number of new infections and deaths numbers in Canada and updates every Monday morning from Feb.01，2020 to Oct.28, 2023. 
 
-This data set contains 2940 observations of 23 variables,including the total number of COVID-19 infections and deaths and their rates from January 2020 until the end of the reporting week, weekly and bi-weekly number of infection and deaths and their rates. Additionally, it includes the average daily death counts and rates derived from both weekly and bi-weekly data. In this section, our analysis emphasizes variables that pertain to both weekly and overall data. The data dictionary detailing the selected variables is provided below.
+This first data set published by government of Canada[@GOC], it contains 2940 observations of 23 variables,including the total number of COVID-19 infections and deaths and their rates from January 2020 until the end of the reporting week, weekly and bi-weekly number of infection and deaths and their rates. Additionally, it includes the average daily death counts and rates derived from both weekly and bi-weekly data. In this section, our analysis emphasizes variables that pertain to both weekly and overall data. The data dictionary detailing the selected variables is provided below.
 ```{r}
 #data dictionary:Covid cases and death
 COVID<-Covid%>%
@@ -89,9 +89,9 @@ CovidDD%>%
     title = "Table 2.1.1: COVID-19 Cases and Death Data Dictionary")
 
 ```
-From the Table 2.1.1, we found that the percentage of missing value in weekly cases and death counts are abound 10%, which is not good for our research. 
+From the Table 2.1.1, we found that the percentage of missing value in weekly cases and death counts are abound 10%, which is not good for our research. Missing values are mainly found in the northern and southeastern provinces and territories, such as Nunavut and Nova Scotia. In order to avoid the impact of missing values on the study, we use the total death and infections of COVID-19 in Canada instead of every province and terrotory in the following discussion.
 
-Second data set is the provisional weekly death counts, by ages and sex from 2010 to 2023, published by Statistics Canada. This data set record the 149730 observations of 17 variables that are relevant for monitoring the impacts of  mortality the province and territory in Canada. We also deleted some variables which are irrelevant with our study or can not delivered the useful information in this data set. Such as variables like STATUS and TERMINATED are missing in all observation in this data set and variables DECIMALS and UOM_ID are the same for all variables. The data dictionary for remaining variables is provided below.
+Second data set is the provisional weekly death counts, by ages and sex from 2010 to 2023, published by Statistics Canada. This data set record the 149730 observations of 17 variables that are relevant for monitoring the impacts of mortality of every province and territory in Canada. We also deleted some variables which are irrelevant with our study or can not delivered the useful information in this data set. Such as variables like STATUS and TERMINATED are missing in all observation in this data set and variables DECIMALS and UOM_ID are the same for all variables. The data dictionary for remaining variables is provided below.
 ```{r}
 #data dictionary:Weekly mortality
 mortality<-WMortality%>%
@@ -116,9 +116,10 @@ data.frame(
 
 
 ```
-In order to have better understanding about the mortality in Canada, we visualize the weekly death counts every year form 2010 to 2023 in Figure(), it is clear to see that the  the number of annual deaths is increasing every year. The overall trend from 2010 to 2019 is similar, with an general  decrease from the begging to the middle of the year then followed by an upward trend until the year end. In the middle of 2020 and the beginning of 2022, there exist two significant spikes on the figure. These pronounced increases in case counts raise the possibility that they may be attributed to distinct outbreaks of the epidemic. 
+The total number of death in this data set exist 9.25% missing data in raw data set, the missing data appears in all data after July 15, 2023. Because we only use the data in Canada with all age group and both sexes, the missing data only accounted for less than 1% of the data set we filtered. Therefore, we our study focused on the overall total death account and the number of COVID-19 deaths in Canada during the period January 2022 to July 2023.
 
-To verify this conjecture, we showed the weekly number of death without the COVID-19 cases in Figure(). The spikes in 2020 and 2022 are removed but the small spike in mid-2021 still exist. So death counts rapid increase in 2020 and 2022 may caused by COVID-19 and we will discuss the probability of  COVID-19 deaths in the total number of death condition on year in the following section.
+In order to have better understanding about the mortality in Canada, we visualize the weekly death counts every year form 2010 to 2023 in Figure2.1.2, it is clear to see that the  the number of annual deaths is increasing every year. The overall trend from 2010 to 2019 is similar, with an general decrease from the begging to the middle of the year then followed by an upward trend until the year end. In the middle of 2020 and the beginning of 2022, there exist two significant spikes on the figure. These pronounced increases in case counts raise the possibility that they may be attributed to distinct outbreaks of the epidemic. 
+
 ```{r}
 #vizualize the death with and without covid
 WMortality%>%
@@ -126,9 +127,8 @@ WMortality%>%
   mutate(Year=factor(Year))%>%
   filter(Age.at.time.of.death=="Age at time of death, all ages" & Sex=="Both sexes" & GEO=="Canada, place of occurrence")%>%
   plot_ly(x=~Week, y=~VALUE, color=~Year,type = "scatter", mode="lines")%>%
-  layout(width = 1000, height = 500,title = 'Figure2.1.1:Weekly Death Counts', yaxis = list(title = "Number of Death"))
+  layout(width = 900, height = 500,title = 'Figure2.1.2:Weekly Death Counts', yaxis = list(title = "Number of Death"))
 ```
-
 
 ```{r}
 Withoutc<-WMortality%>%
@@ -152,8 +152,9 @@ WOMortality<-WMortality%>%
 WOMortality%>%
   mutate(Death_without_covid=VALUE-numdeaths_last7)%>%
   plot_ly( x=~Week, y=~Death_without_covid, color=~factor(Year),type = "scatter", mode="lines")%>%
-layout(width = 900, height = 500, title = 'Figure2.1.2:Weekly Death Counts without COIVD cases',yaxis = list(title = "Number of Death without COVID"))
+layout(width = 900, height = 500, title = 'Figure2.1.3:Weekly Death Counts without COIVD cases',yaxis = list(title = "Number of Death without COVID"))
 ```
+To verify this conjecture, we showed the weekly number of death without the COVID-19 cases in Figure2.1.3. The spikes in 2020 and 2022 are removed but the small spike in mid-2021 still exist. So death counts rapid increase in 2020 and 2022 may caused by COVID-19 and we will discuss the probability of  COVID-19 deaths in the total number of death condition on year in the following section.
 
 ## Long-term Impact
 
@@ -232,8 +233,8 @@ colnames(tbl)<-c("Year","Covid Death", "Not Covid Death")
 tbl%>%gt()%>%tab_header(
     title = "Table 3.1.1: Contingency table for proportion of COVID-19 death")
 ```
-To test the homogeneity for COVID-19 death probability condition on years, we can use the Chi-square test and the null and alternative hypothesis of homogeneity corresponding to:
 
+To test the homogeneity for COVID-19 death probability condition on years, we can use the Chi-square test and the null and alternative hypothesis of homogeneity corresponding to:
 \begin{gather*}
 H_0:P_{j|i}\ =\ P_{·j}\\
 H_1:P_{j|i}\neq P_{·j}
@@ -247,9 +248,9 @@ ntbl<-data.frame(cbind(YC,NC))
 colnames(ntbl)<-c("Covid", "Not Covid")
 ntbls= cbind(c("2020","2021","2022","2023"),ntbl)
   colnames(ntbls)<-c("Year","Covid", "Not Covid")
-ntbls%>%
-  gt()%>%tab_header(
-    title = "Table 3.1.2: Contingency table for death counts")
+#ntbls%>%
+  #gt()%>%tab_header(
+    #title = "Table 3.1.1: Contingency table for death counts")
 chi_square<-c(chisq.test(ntbl)$statistic ,GTest(ntbl)$statistic)
 p_value<-c(chisq.test(ntbl)$p.value,GTest(ntbl)$p.value)
 test<-c("Chi-squated test","Likelihood ratio test")
@@ -292,9 +293,9 @@ Table 3.1.4 showed the Relative risks in 2021,2022 and 2023. We can see that rel
 ```{r}
 #Odds ratios
 Tbl<-as.matrix(tbl[,c(2,3)])
-OR21=Tbl[1,1]*Tbl[2,2]/(Tbl[1,2]*Tbl[2,1])
-OR22=Tbl[1,1]*Tbl[3,2]/(Tbl[1,2]*Tbl[3,1])
-OR23=Tbl[1,1]*Tbl[4,2]/(Tbl[1,2]*Tbl[4,1])
+OR21=round(Tbl[1,1]*Tbl[2,2]/(Tbl[1,2]*Tbl[2,1]),4)
+OR22=round(Tbl[1,1]*Tbl[3,2]/(Tbl[1,2]*Tbl[3,1]),4)
+OR23=round(Tbl[1,1]*Tbl[4,2]/(Tbl[1,2]*Tbl[4,1]),4)
 ORtbl<-data.frame("Odds Ratio",OR21,OR22,OR23)
 colnames(ORtbl)<-c("Year", "2021", "2022","2023")
 ORtbl%>%gt()%>%tab_header(
@@ -319,8 +320,6 @@ Xy<-RegressionData[,2:14]%>%mutate(y=RegressionData$Covid_Status)%>%na.omit()
 Models<-bestglm(Xy,family=binomial,IC=c("AIC")) 
 ```
 
-<<<<<<< HEAD
-=======
 ```{r}
 fits<-t(rbind(Models$Subsets[,1:14], n=colSums(Models$Subsets[,1:14])))
 fits<-cbind(as.data.frame(fits[order(fits[,"n"], decreasing = TRUE),-15]%>%t()), Models$Subsets[,15:16])
@@ -379,11 +378,12 @@ glm(Covid_Status~WashHand+WearMask+Keep2m+AvoidCrowds, data=Xy2, family = "binom
   stargazer(type = "text", title="Table 3.3.7: Model Estimates of COVID Status with Preventative Behaviours",dep.var.labels = c("Covid\\_Status"), report=("vc*s*p"))
 ```
 
-
->>>>>>> 7764ae4ab6a31a1b81bf6f70d6aeafcc381024bf
 # Discussion
 
 ## Mortality
+From Section 3.1, we found that the probability of death caused by COVID-19 is not homogeneous across years, then we computed the relative risks and odds ratios for 2021,2022 and 2023. We observed that relative risk in 2022 (RR = 1.1714) indicates a higher risk compared to the 2020, while relative risk in 2021 (RR = 0.9449) suggests a slightly lower risk. Notably, relative risk in 2023 (RR = 0.4714) stands out with a significantly lower risk, suggesting a potential protective effect. The odds ratio in 2023 (OR = 2.179) stands out, indicating a significantly higher odds compared to the odds in 2020. In contrast, odds ratio in 2022 (OR = 0.8461) suggests a lower odds, while odds ratio in 2021 (OR = 1.0613) demonstrates a subtle increase.
+
+The lower risk and higher odds in 2021 and 2023 might because the widespread vaccination in Canada. Public Health Ontario states[@PHO] that over 70.2% of Ontario residents received at least one dose of COVID-19 vaccine in the full year 2021, over 60% completed two doses vaccination. Also, the vaccine still has high vaccine effectiveness against variants of concern Alpha and delta. Till October 2023, 80.5% people in total population in Canada completed their primary series vaccination, over 4 million people received booster dose  Pfizer-BioNTech Comirnaty vaccine[@VC]. The public health restrictions and mandatory masking policies dropped, there has also been a shift from the young to the old, with more than 80% of deaths occurring in patients over 65 years old with comorbidities[@CBC].
 
 ## Long-term Impact
 
@@ -400,6 +400,7 @@ In other words, $e^{\beta_j}$ is the marginal increase/decrease in the odds for 
 From the second model fitting for preventative behaviours, we found that only washing hand was showing a negative effect on the odds of getting COVID. We weren't able to draw any conclusion for other preventative behaviours, but we thought it was inevitably hard to find a relationship between the COVID status and those behaviours because people may not answer the questionnaire accurately. People might find difficult to distinguish the boundary between wearing mask often and always. People can even falsely answer that they keep a distance of 2 metres or more but in reality they have not done so. The resulting answers for the survey therefore may not be as reliable. Thus we thought it is generally difficult to accurately describe the relationship between prevalence of disease and preventative behaviour. Researchers have to design experiments and find ways to quantify the behaviour in order to have more reliable outcomes. 
 
 # Conclusion
+In Mortality section, we found that there exist significant difference in  probability of death caused by COVID-19 across years. 2023 and 2021 have the relative risk less than 1 and odds ratio higher than 1, which indicate the positive association, indicating an increased likelihood of the in probability in COVID-19 death in these years. 2022 has the relative risk greater than 1 and odds ratio less than 1, which indicate the negative association, indicating an decreased likelihood of the in probability in COVID-19 death in these years.
 
 We found in Prevalence Modeling section that the COVID status is negatively associated with the vaccination status, indicating that vaccines was a significant factor to lower the prevalence of the virus. We also found but not surprising that the antibody test result was positively related to the COVID status. In addition, we did confirm that washing hands can result in a negative influence on the prevalence of COVID, but we could not find the same conclusion for other preventative behaviours.
 
