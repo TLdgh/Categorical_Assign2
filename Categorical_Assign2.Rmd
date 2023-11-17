@@ -39,7 +39,7 @@ library(DescTools)
 ```{r}
 CCAHS<-read.csv("CCAHS.csv", header = TRUE)
 Covid<-read.csv("Covid.csv", header = TRUE)
-Covid_aG<-read.csv("COVID_cases.csv", header = TRUE)
+Covid_aG<-read.csv("COVID_AgeGender.csv", header = TRUE)
 WMortality<-read.csv("WeeklyMortality.csv", header = TRUE)
 ExMortality<-read.csv("ExcessMortality.csv", header = TRUE)
 LongTerm<-read.csv("LongTerm.csv", header = TRUE)
@@ -157,6 +157,35 @@ layout(width = 900, height = 500, title = 'Figure2.1.3:Weekly Death Counts witho
 To verify this conjecture, we showed the weekly number of death without the COVID-19 cases in Figure2.1.3. The spikes in 2020 and 2022 are removed but the small spike in mid-2021 still exist. So death counts rapid increase in 2020 and 2022 may caused by COVID-19 and we will discuss the probability of  COVID-19 deaths in the total number of death condition on year in the following section.
 
 ## Long-term Impact
+
+The data of COVID-19 long term symptom among Canadian adults is from the Canadian COVID-19 Antibody and Health Survey (CCAHS) Cycle2. The survey collected the data over 3 collection periods between April 2022 and August 2022. The target population for this survey was adults 18 years of age and older living in the 10 provinces across Canada. Respondents who reported experiencing symptoms at least three months after a positive COVID-19 test were considered to have long-term symptoms.[@LongTerm] The long term symptoms data used in this study has been pre-processed by Statistics Canada. It is grouped by sex and age groups. The measure is binary response from the respondents. The value shows the percentage of responses within each specific group. The confidence intervals are provided in the assessment of point estimates in case of high variability in the data. 
+
+The definition of main variables in the data is shown in following Table 2.2.1.
+
+```{r}
+DataDict_data <- LongTerm[,c(1,2,4,5,6,7,8,14,18)]
+
+DataDict<-data.frame(
+  Variables=colnames(DataDict_data),   
+  Type=sapply(DataDict_data, function(x) class(x)),
+  Example=sapply(DataDict_data, function(x) paste(as.character(head(unique(x),2)), collapse = ", ")),
+  Number.Unique=sapply(DataDict_data, function(x) length(unique(x))),
+  PctMissing=sapply(DataDict_data, function(x) paste0(round(sum(is.na(x))/length(x), 4)*100,"%")),
+  Comment=c("Reference Year (2022)",
+                  "Geographic Location (Canada)",
+                  "Does the respondent have the long term symptoms? Yes or No.",
+                  "Sex Category",
+                  "Age Groups",
+                  "Characteristics of the value, estimate or confidence interval",
+                  "Unit of Measure (Percentage of the group)",
+                  "Data Value",
+                  "Number of Decimal Places in Value")
+)
+DataDict%>%gt()%>%tab_header(
+    title = "Table 2.2.1: Long Term Symptoms Data Definition")
+```
+
+In the study, we dropped variables like "REF_DATE", "GEO" which contain the survey information and are the same across the entire data. A data of current COVID-19 cases in Canada [@COVIDCASE_AG] was used to estimate the missing variables necessary for the test we applied in later Section 3.2.
 
 ## Prevalence Modeling
 
@@ -305,6 +334,262 @@ From Table 3.1.5, we can see that the odds ratios for all three years are not eq
 
 ## Long-term Impact
 
+As the data of COVID-19 long term symptom among Canadian adults did not contain the population size and population for each groups. We estimate the counts from the data of Weekly number of COVID-19 cases in Canada as of October 28, 2023. From the data of overall COVID-19 cases, we first grouped the data to the similar structure as our Long Term Symptom data. The data of other genders was dropped because that the count is too small comparing to the total population.
+```{r}
+#group the longterm data and drop variables not used in the analysis
+grouped_data <- LongTerm %>%
+  filter(Characteristics == 'Percent') %>%
+  group_by(Sex, Age.group, Measures) %>%
+  summarise(VALUE, .groups = 'drop') %>% 
+  spread(Measures, VALUE)
+
+#clean the covid cases data by age and gender
+cleaned_data <- Covid_aG %>%
+  select(-rate_per_100000) %>%
+  filter(status != 'deaths', 
+         age_group != 'all', 
+         gender != 'all',
+         gender != 'other') %>%
+  na.omit()
+
+#match the age groups categories with longterm
+map_age_group <- function(age_group) {
+  case_when(
+    age_group %in% c("20 to 29", "30 to 39") ~ "Ages 18 to 34",
+    age_group %in% c("40 to 49") ~ "Ages 35 to 49",
+    age_group %in% c("50 to 59", "60 to 69") ~ "Ages 50 to 64",
+    age_group %in% c("70 to 79", "80+") ~ "Ages 65 and over",
+    TRUE ~ NA_character_ 
+  )
+}
+
+#match the sex categories
+summary_data <- cleaned_data %>%
+  mutate(age_group = map_age_group(age_group)) %>%
+  mutate(gender = case_when(
+    gender == 'male' ~ 'Males',
+    gender == 'female' ~ 'Females',
+    TRUE ~ gender
+  )) %>%
+  filter(!is.na(age_group)) %>%
+  group_by(gender,age_group) %>%
+  summarise(count = sum(count), .groups = 'drop')
+
+#total for ages
+ages_18_and_over <- summary_data %>%
+  group_by(gender) %>%
+  summarise(count = sum(count), .groups = 'drop') %>%
+  mutate(age_group = 'Ages 18 and over')
+
+summary_data <- bind_rows(summary_data, ages_18_and_over)
+
+#both sexes
+both_sexes_data <- summary_data %>%
+  filter(gender %in% c('Males', 'Females')) %>%
+  group_by(age_group) %>%
+  summarise(count = sum(count), .groups = 'drop') %>%
+  mutate(gender = 'Both sexes')
+
+final_summary_data <- rbind(summary_data, both_sexes_data)
+final_summary_data <- final_summary_data %>%
+  arrange(gender, age_group) %>%
+  rename(Sex = gender, Age.group = age_group)
+
+#combine longterm proportion data with the group counts
+combined_data <- left_join(grouped_data, final_summary_data, by = c("Sex", "Age.group"))
+```
+
+The data is first grouped by sex which consists of "males", "females", and "Both sexes". "Both sexes" group contain the combined data from both males and females. Then the data is further grouped by age groups. Subgroup "Ages 18 and over" has the total count for the corresponding sex group. The proportion table with total count of subgroups is shown in the Table 3.2.1 below.
+```{r}
+gt_table <- combined_data %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table 3.2.1:Combined Data Showing Proportions and Counts by Sex and Age**")
+  ) %>%
+  cols_label(
+    Sex = "Sex",
+    `Age.group` = "Age Group",
+    `Yes, had long-term symptoms` = "Yes, had long-term symptoms (Percent)",
+    `No, did not have long-term symptoms` = "No, did not have long-term symptoms (Percent)",
+    count = "Count"
+  ) %>%
+  tab_style(
+    style = list(
+      cell_borders(sides = "bottom", weight = px(2))
+    ),
+    locations = cells_body(
+      rows = combined_data$Sex != dplyr::lead(combined_data$Sex)
+    )
+  ) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "lightgrey"), 
+      cell_text(weight = "bold")
+    ),
+    locations = cells_column_labels(columns = TRUE)
+  ) %>%
+  tab_style(
+    style = cell_text(align = "center"), 
+    locations = cells_body(columns = c(3,4))
+  )
+
+invisible(print(gt_table))
+```
+From the Table 3.2.1, we find that for females, higher proportion(24.4%) of respondents from age 65 and over reported long term symptoms. While males from ages 18 to 34 show a higher proportion(13%) to report long term symptoms. Overall(both sexes), higher proportion(17.8%) of adults from ages 65 and over reported long term symptoms. For all age groups, 20.1% of females reported long term symptoms comparing to only 12% of males.
+
+To study the association between age groups and the long term symptoms, A Chi-square test was conducted within each sex group. The hypothesis of independence corresponds to $H_0:p_{ij}=p_{i\cdot}p_{\cdot j}, \forall i,j$. Under each sex group, a $4\times2$ contingency is constructed. We have age groups as the row variable , response of long term symptoms as the column variable. Counts for specific responses "Yes, had long-term symptoms" and "No, did not have long-term symptoms" are estimated using the corresponding proportion and the total counts of each subgroup. 
+
+A similar Chi-square test was applied to test the association between sex and the long term symptoms. Under each age group, a $2\times2$ contingency table is constructed with sex as the row variable and long term symptoms as the column variable. 
+
+Test results are shown in the following table.
+```{r}
+library(broom)
+perform_chi_square1 <- function(data) {
+  filtered_data <- data %>% 
+    filter(`Age.group` != "Ages 18 and over")
+
+  contingency_table <- filtered_data %>%
+    select(`Age.group`, `Yes, had long-term symptoms`, count) %>%
+    mutate(No = round((100 - `Yes, had long-term symptoms`) * count / 100),
+           Yes = round(`Yes, had long-term symptoms` * count / 100)) %>%
+    select(-`Yes, had long-term symptoms`,-`count`) %>%
+    group_by(`Age.group`)
+
+  chi_square_result <- chisq.test(contingency_table[-1])
+  
+  return(chi_square_result)
+}
+
+results1 <- list()
+sexes <- c("Males", "Females", "Both sexes")
+for (sex in sexes) {
+  filtered_data <- combined_data %>% filter(Sex == sex)
+  results1[[sex]] <- perform_chi_square1(filtered_data)
+}
+
+test_results1 <- lapply(results1, tidy) %>% bind_rows() %>% mutate(Sex = sexes)
+test_results1 <- select(test_results1, Sex, statistic, p.value)
+
+significance_level <- 0.05
+
+result_table1 <- test_results1 %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table 3.2.2: Chi-Squared Test Results of Age groups and Long term symptoms**")
+  ) %>%
+  cols_label(
+    Sex = "Sex",
+    statistic = "Chi-Squared Statistic",
+    p.value = "P-Value"
+  ) %>%
+  fmt_number(
+    columns = vars(statistic, p.value),
+    decimals = 3
+  ) %>%
+  fmt(
+    columns = vars(p.value),
+    fns = function(x) {
+      ifelse(x < significance_level, paste("<", significance_level), sprintf("%.3f", x))
+    }
+  )
+
+invisible(print(result_table1))
+```
+Table 3.2.2 shows the results of Chi-squared tests comparing the Occurrence of long-term COVID-19 symptoms across different age groups within each sex category and for both sexes combined.For all categories (Males, Females, and Both Sexes), the Chi-squared statistics are high, and the p-values are less than 0.05.This suggests that within each of these categories, there is a statistically significant association between age group and the occurrence of long-term COVID-19 symptoms. The differences in symptom frequencies across age groups are not likely to be due to random chance.
+
+```{r}
+perform_chi_square2 <- function(data, age_group) {
+  filtered_data <- data %>%
+    filter(`Age.group` == age_group, Sex != "Both sexes")
+
+  contingency_table <- filtered_data %>%
+    select(Sex, `Yes, had long-term symptoms`, count) %>%
+    mutate(No = round((100 - `Yes, had long-term symptoms`) * count / 100),
+           Yes = round(`Yes, had long-term symptoms` * count / 100)) %>%
+    select(-`Yes, had long-term symptoms`,-`count`) %>%
+    group_by(Sex)
+
+  chi_square_result <- chisq.test(contingency_table[-1])
+
+  return(chi_square_result)
+}
+
+age_groups <- unique(combined_data$Age.group)
+
+results2 <- list()
+for (age in age_groups) {
+  results2[[age]] <- perform_chi_square2(combined_data, age)
+}
+
+test_results2 <- lapply(results2, tidy) %>% bind_rows() %>% mutate(`Age.group` = age_groups)
+test_results2 <- select(test_results2, `Age.group`, statistic, p.value)
+
+result_table2 <- test_results2 %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table 3.2.3: Chi-Squared Test Results of Sex and Long term symptoms**")
+  ) %>%
+  cols_label(
+    `Age.group` = "Age Group",
+    statistic = "Chi-Squared Statistic",
+    p.value = "P-Value"
+  ) %>%
+  fmt_number(
+    columns = vars(statistic),
+    decimals = 3
+  ) %>%
+  fmt(
+    columns = vars(p.value),
+    fns = function(x) {
+      ifelse(x < 0.05, paste("< 0.05"), sprintf("%.3f", x))
+    }
+  )
+
+invisible(print(result_table2))
+```
+Table 3.2.3 presents the results of Chi-squared tests comparing the occurrence of long-term COVID-19 symptoms between males and females within each age group.Each age group shows a very high Chi-squared statistic with all p-values being less than 0.05. These results indicate a statistically significant association between sex and the occurrence of long-term COVID-19 symptoms in each age group.
+
+To further explore the strength of the association. We calculated odds ratios primarily between males and females in each age group. For each age group, the odds of females experiencing long-term symptoms are compared to the odds for males. An OR greater than 1 indicates a higher likelihood for females. The results are shown in Table 3.2.4.
+```{r}
+contingency_tables <- combined_data %>%
+  #filter(`Age.group` != "Ages 18 and over") %>%
+  filter( Sex != "Both sexes") %>%
+  select(`Sex`, `Age.group`, `Yes, had long-term symptoms`, count) %>%
+  mutate(No = round((100 - `Yes, had long-term symptoms`) * count / 100),
+         Yes = round(`Yes, had long-term symptoms` * count / 100)) %>%
+  select(-`Yes, had long-term symptoms`, -count) %>%
+  pivot_longer(cols = c("Yes", "No"), names_to = "Response", values_to = "Count") %>%
+  group_by(`Age.group`, `Sex`, Response) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "Response", values_from = "Count")
+
+contingency_tables <- contingency_tables %>%
+  mutate(Odds = Yes / No)
+
+odds_ratios <- contingency_tables %>%
+  group_by(Age.group) %>%
+  summarise(OddsRatio = Odds[Sex == "Females"] / Odds[Sex == "Males"]) %>%
+  ungroup()
+
+OR_table <- odds_ratios %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table 3.2.4: Odds Ratios of Long-term COVID-19 Symptoms: Females vs Males by Age Group**")
+  ) %>%
+  cols_label(
+    Age.group = "Age Group",
+    OddsRatio = "Odds Ratio"
+  ) %>%
+  fmt_number(
+    columns = vars(OddsRatio),
+    decimals = 3
+  )
+
+invisible(print(OR_table))
+
+```
+Across all age groups, females are consistently more likely than males to report long-term COVID-19 symptoms, as indicated by odds ratios greater than 1 in each category. The odds ratios seem to increase with age. The highest disparity between females and males is observed in the oldest age group (Ages 65 and over).
+
 ## Prevalence Modeling
 
 The hypothesis we were mostly interested in was:
@@ -387,6 +672,12 @@ The lower risk and higher odds in 2021 and 2023 might because the widespread vac
 
 ## Long-term Impact
 
+Based on the results from section 3.2, The Chi-squared tests revealed statistically significant associations between age groups and the occurrence of long-term COVID-19 symptoms within each sex category and between sexes within each age group. The Odds Ratios consistently showed that females are more likely than males to report long-term COVID-19 symptoms in all age groups.This disparity in the likelihood of symptoms appears to increase with age, with the oldest age group (Ages 65 and over) showing the highest Odds Ratio.
+
+Our findings resonate with several clinical studies that have suggested gender difference in the impact of long_COVID-19 syndrome.Specifically, the higher likelihood of long-term symptoms in females is consistent with public health researches that women might experience COVID-19 differently than men.[@Bai2021-vb] However our study is based on aggregated data focusing primarily on the association of sex and age with long-term COVID-19 symptoms. While this provides valuable insights, the data does not include individual patient states that could influence the findings. Moreover, The nature of the data and the analytical methods used (Chi-squared tests and Odds Ratios) are effective for identifying associations but do not establish causation. 
+
+Further studies involving more detailed data should aim to uncover the biological, social, and behavioral mechanisms driving the observed gender differences in long-term COVID-19 symptoms. Some study[@Juszko2022-oq] suggests that psychological factors also have correlation in both women and men with self-reported health after COVID-19. The study clearly indicates a significant gender disparity in the mental health impact of COVID-19 during the recuperation period.
+
 ## Prevalence Modeling
 
 From Section 3.3 we have found that the odds ratio of COVID-19 was related to two covariates: the vaccination status and the antibody presented in blood. Specifically, we interpreted the coefficients as the log-odds for its corresponding covariate. 
@@ -401,6 +692,8 @@ From the second model fitting for preventative behaviours, we found that only wa
 
 # Conclusion
 In Mortality section, we found that there exist significant difference in  probability of death caused by COVID-19 across years. 2022 has the relative risk greater than 1 and odds ratio less than 1, which indicate the negative association, indicating an decreased likelihood of the in probability in COVID-19 death in these years.Given the change in the demographic of the affected population, it is essential to acknowledge the possibility that the rise in mortality among older individuals in the later stages of the epidemic could be attributed to complications rather than the direct impact of COVID-19 itself. In future research, it would be valuable to explore the influence of complications on the death after infections.
+
+we can conclude that there is a significant association between age and gender with the occurrence of long-term COVID-19 symptoms. Notably, females across all age groups, especially those aged 65 and over, are more likely to report these symptoms compared to males.However, it's important to recognize that our study, while highlighting crucial associations, does not delve into the causal mechanisms due to its reliance on aggregated data. This limitation underscores the need for further research with more comprehensive data to explore the underlying biological, social, and psychological factors contributing to these observed differences in long-term COVID-19 symptoms.
 
 We found in Prevalence Modeling section that the COVID status is negatively associated with the vaccination status, indicating that vaccines was a significant factor to lower the prevalence of the virus. We also found but not surprising that the antibody test result was positively related to the COVID status. In addition, we did confirm that washing hands can result in a negative influence on the prevalence of COVID, but we could not find the same conclusion for other preventative behaviours.
 
