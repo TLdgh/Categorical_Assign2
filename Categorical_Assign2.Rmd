@@ -37,7 +37,7 @@ library(stargazer)
 ```{r}
 CCAHS<-read.csv("CCAHS.csv", header = TRUE)
 Covid<-read.csv("Covid.csv", header = TRUE)
-Covid_aG<-read.csv("COVID_cases.csv", header = TRUE)
+Covid_aG<-read.csv("COVID_AgeGender.csv", header = TRUE)
 WMortality<-read.csv("WeeklyMortality.csv", header = TRUE)
 ExMortality<-read.csv("ExcessMortality.csv", header = TRUE)
 LongTerm<-read.csv("LongTerm.csv", header = TRUE)
