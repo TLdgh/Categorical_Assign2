@@ -6,7 +6,7 @@ NeuralNet<-setRefClass(
   methods = list(
     initialize=function(data, hidden_neurons, num_iteration, learning_rate){
       .self$hidden_neurons<-hidden_neurons
-      .self$X<-as.matrix(scale(data[, c(1:2)]),   byrow=TRUE)%>%t()
+      .self$X<-as.matrix(scale(data[, c(1:(ncol(data)-1))]),   byrow=TRUE)%>%t() #2 rows
       .self$y<-t(as.matrix(data$y, byrow=TRUE))
       
       .self$output<-MainModel(X, y, num_iteration, hidden_neurons, learning_rate)
@@ -129,7 +129,7 @@ NeuralNet<-setRefClass(
       W2 <- params$W2
       
       delta2<-A2*(1-A2)*(A2-y) #1x320
-      dW2 <- 1/SampleSize * (delta2 %*% t(A1))  #1x320 x 320 x 4
+      dW2 <- 1/SampleSize * (delta2 %*% t(A1))  #1x320 x 320 x 4 = 1 x 4
       db2 <- matrix(1/SampleSize * sum(delta2), nrow = n_y) 
       
       delta1 <- A1*(1-A1)*(t(W2)%*%delta2)# 4x320  x (4x1 x 1x320)=4x320
@@ -197,7 +197,7 @@ NeuralNet<-setRefClass(
     
     
     makePrediction=function(testdata, hidden_neurons){
-      testX<-as.matrix(scale(testdata[, c(1:2)]),   byrow=TRUE)%>%t()
+      testX<-as.matrix(scale(testdata[, c(1:(ncol(testdata)-1) )]),   byrow=TRUE)%>%t()
       testy<-t(as.matrix(testdata$y, byrow=TRUE))
       
       testlayer_size <- getLayerSize(testX, testy, hidden_neurons)

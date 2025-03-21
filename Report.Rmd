@@ -384,37 +384,80 @@ Artificial neural networks have been developed to solve some of the typical prob
 ```{r}
 df <- lapply(Xy, function(x) {
   if (is.factor(x)) as.numeric(x) else x
-})%>%do.call(cbind, . )%>%as_tibble()%>%transmute(x1=VaccineStatus, x2=AntiBodyResult, y=Covid_Status)
+})%>%do.call(cbind, . )%>%as_tibble()
+
+df <- df %>% select(-Covid_Status, everything(), y=Covid_Status)
 
 train_data <- df[1:1462, ]
 test_data <- df[1463:1828, ]
 
-test<-NeuralNet$new(data=train_data, hidden_neurons=40, num_iteration=5000, learning_rate=0.95)
+test<-NeuralNet$new(data=train_data, hidden_neurons=5, num_iteration=10000, learning_rate=0.9)
 
 plot_ly(y=test$output$cost_hist, type = "scatter", mode="lines",line = list(width = 1))%>%
   layout(title="Figure 3: Loss History of Feedforward Neural Network",
          xaxis=list(title="Iteration"),
          yaxis=list(title="Mean Squared Error"))
 
-
-y_pred<-test$makePrediction(testdata=test_data, 40)
-
-df_pred<-data.frame(x1=test_data$x1, x2=test_data$x2, y_pred=as.numeric(y_pred), y_true=test_data$y)
+y_pred<-test$makePrediction(testdata=test_data, 5)
+df_pred<-data.frame(y_pred=as.numeric(y_pred), y_true=test_data$y)
 ```
 
 The confusion matrix gives the TN, FN, FP, and TP values respectively.
 ```{r}
-# Compute confusion matrix and format percentages
+# Compute the confusion matrix
+conf_matrix <- table(df_pred$y_pred, df_pred$y_true)
+# Add row and column names
+rownames(conf_matrix) <- paste("Predicted", rownames(conf_matrix))
+colnames(conf_matrix) <- paste("Actual", colnames(conf_matrix))
+
+# Compute marginal frequencies
+row_marginals <- margin.table(conf_matrix, 1)  # Row sums (predicted)
+col_marginals <- margin.table(conf_matrix, 2)  # Column sums (actual)
+
+# Display the confusion matrix with marginals
+conf_matrix_with_marginals <- rbind(cbind(conf_matrix, "Row Total"=row_marginals),
+                                    "Column Total"=c(col_marginals,  sum(conf_matrix)))
+
+
+
+# Display nicely formatted table with kableExtra
+kable(conf_matrix_with_marginals, format = "html", caption = "Confusion Matrix") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+```{r}
 conf_matrix <- as.matrix(table(df_pred$y_pred, df_pred$y_true) / nrow(df_pred) * 100) %>%
-  apply(c(1, 2), function(x) sprintf('%.2f%%', x))
+  apply(c(1, 2), function(x) sprintf('%.3f%%', x))
 
 # Add row and column names
 rownames(conf_matrix) <- paste("Predicted", rownames(conf_matrix))
 colnames(conf_matrix) <- paste("Actual", colnames(conf_matrix))
 
 # Display nicely formatted table with kableExtra
-kable(conf_matrix, format = "html", caption = "Confusion Matrix") %>%
+kable(conf_matrix, format = "html", caption = "Joint Probability") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+```{r}
+# Create confusion matrix as a table
+conf_matrix <- table(df_pred$y_pred, df_pred$y_true)
+
+# Calculate column marginal totals
+col_marginals <- colSums(conf_matrix)
+
+# Calculate the marginal frequencies (as percentages)
+conf_matrix_percentage <- (as.matrix(conf_matrix) / col_marginals * 100) %>%
+  apply(c(1, 2), function(x) sprintf('%.3f%%', x))
+
+# Add row and column names
+rownames(conf_matrix_percentage) <- paste("Predicted", rownames(conf_matrix_percentage))
+colnames(conf_matrix_percentage) <- paste("Actual", colnames(conf_matrix_percentage))
+
+
+# Display nicely formatted table with kableExtra
+kable(conf_matrix_percentage, format = "html", caption = "Conditional Probability on Actual (Precision)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)%>%
+  column_spec(1:ncol(conf_matrix_percentage), width = "10em")
 ```
 
 Model goodness-of-fit can be done through the confusion matrix to examine measures of classification:
