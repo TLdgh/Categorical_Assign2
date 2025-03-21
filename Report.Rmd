@@ -1,0 +1,454 @@
+---
+title: "CCAHS2"
+author: "Teng Li"
+output:
+  html_document:
+    toc: true
+    df_print: paged
+  html_notebook:
+    toc: true
+    number_sections: true
+header-includes:
+- \renewcommand{\and}{\\}
+- \usepackage{float}
+- \floatplacement{figure}{H}
+bibliography: References.bib
+link-citations: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(plotly)
+library(gt)
+library(kableExtra)
+source('CodeSpace.R')
+```
+
+```{r}
+CCAHS<-read.csv("CCAHS.csv", header = TRUE)
+CCAHS2<-read.csv("CCAHS2_ECSAC2_CSV/data/ccahs2_pumf.csv", header = TRUE)
+```
+
+# Introduction
+
+The COVID-19 pandemic, caused by the novel coronavirus SARS-CoV-2, has had an unprecedented impact on global health, economies, and daily life since its emergence in late 2019. As the world fights with the challenges posed by this highly contagious virus, epidemiological data have been continuously gathered and released to the public, driving numerous researches and different approaches in trying to understand its patterns of transmission, to identify vulnerable populations, and to inform public health strategies. Due to the severity of the early stage of the pandemic and its wide impact on global production, data of high quality and accuracy were gathered in the nation through surveys and reports, so we believed that the COVID-19 data sets could be more informative and extensive than other epidemiology data.
+
+In this assignment, we looked into the COVID-19 epidemiology data sets provided by Statistics Canada along with other related data sets. We attempted to answer two major questions:
+
+1. We gathered data of COVID-19 long term symptom among Canadian adults. We wanted to draw some conclusions on whether the virus had any impact on the long-term health condition of Canadians.
+
+2. We wanted to measure the relationship between the risk prevalence and some factors like vaccination status, chronic conditions and having or not a direct contact with people etc. By building a statistical model between the response and predictors, it helped us understand what procedures or conditions can affect the prevalence of COVID-19.  
+
+We conducted our research using the Canadian COVID-19 Antibody and Health Survey (CCAHS) data sets published by Statistics Canada. The CCAHS survey collected key information relevant to the pandemic to learn as much as possible about the virus, how it affects overall health, how it spreads, and whether Canadians are developing antibodies against it. [@CCAHS] The survey contained two parts, an electronic questionnaire and an at-home blood test. The questionnaire aimed to get general health and exposure conditions of participants, whereas the blood test was used to determine the presence of COVID-19 antibodies. It is a sample survey with a cross-sectional design, collecting data over various periods. The Cycle 1 survery results were collected between November 2020 and April 2021, and the Cycle 2 results were collected between April 2022 and August 2022. 
+
+For the first question, the data of interest for this report is the Cycle2 data set. The target population for this survey was adults 18 years of age and older living in the 10 provinces across Canada. Respondents who reported experiencing symptoms at least three months after a positive COVID-19 test were considered to have long-term symptoms.[@LongTerm]. Of all 105998 participants in this cycle, 32527 responsed the questionnaire. 
+
+For the second question, we used the Cylcle 1 data set. The target population for this cycle is person 1 year of age and older living in the 10 provinces or 3 territorial capitals.In addition, participants were sampled randomly from 30 strata created from each province. Due to the various size of the population of each stratum, Statistics Canada had to adjust the sample size in those strata with a larger population and higher proportion of COVID confirmed cases, ensuring a precise estimate of the prevalence. In addition, a two-stage sampling method was done at the household level, from which one of the household members was selected for the survey. Of all the participants selected in the Cycle 1 part of the survey, 10978 had responded, bringing an overall response rate of 23%.  
+
+# Result
+
+## Long-term Impact
+
+The definition of main variables in the long term symptom data is shown in Table 1.1.1.
+
+```{r}
+LongTerm=CCAHS2%>%select(PUMFID, CS_45, AGEGRP, GDR_05)%>%
+  transmute(Response=case_when(CS_45 == 1 ~ "Yes",
+                               CS_45 == 2 ~ "No",
+                               CS_45 == 3 ~ "LessThan3Mths",
+                               CS_45 == 6 ~ "ValidSkip",
+                               CS_45 == 7 ~ "Unknown",
+                               CS_45 == 9 ~ "NoResponse"),
+            AgeGroup = case_when(AGEGRP==1 ~ "18-39",
+                                 AGEGRP==2 ~ "40-59",
+                                 AGEGRP==3 ~ "60+"),
+            Gender = case_when(GDR_05==1 ~ "Male",
+                               GDR_05==2 ~ "Female"))
+
+DataDict<-data.frame(
+  Variables=colnames(LongTerm),
+  Type=sapply(LongTerm, function(x) class(x)),
+  Example=sapply(LongTerm, function(x) paste(as.character(head(unique(x),3)), collapse = ", ")),
+  Number.Unique=sapply(LongTerm, function(x) length(unique(x))),
+  PctMissing=sapply(LongTerm, function(x) paste0(round(sum(is.na(x))/length(x), 4)*100,"%")))
+DataDict%>%gt()%>%tab_header(
+  title = "Table 1.1.1: Long Term Symptoms Data Definition")
+```
+
+
+```{r}
+LongTermTable=LongTerm%>%filter(Response %in% c("Yes","No"))%>%
+  group_by(Response,AgeGroup, Gender)%>%
+  summarise(Count=n())%>%ungroup()
+LongTermTable%>%pivot_wider(values_from = Count, names_from = Response)%>%
+  gt()%>%
+  tab_header(
+    title = md("**Table 3.2.1:Contingency Table of Long-term Symptoms by Sex and Age**")
+  ) %>%
+  cols_label(
+    AgeGroup = "AgeGroup",
+    Gender = "Gender",
+    No = "No long-term symptoms",
+    Yes = "Has long-term symptoms")%>%
+  tab_style(
+    style = list(
+      cell_fill(color = "lightgrey"), 
+      cell_text(weight = "bold")
+    ),
+    locations = cells_column_labels(columns = TRUE))%>%
+  tab_style(
+    style = cell_text(align = "center"), 
+    locations = cells_body(columns = c(3,4)))
+```
+
+We first consider marginal tables in which one of the AgeGroup and Gender variables is aggregated. We then explore whether the long-term sympton of COVID-19 is related to either of these variables. Consider testing the following hypothesis:
+
+$$
+H_0:p_{ij+}=p_{i++}p_{+j+}, \forall i,j
+$$
+where i is the level of AgeGroup, aggregated by the third variable Gender, and j is the binary outcome of having the long term symptom or not.
+```{r}
+AgeResponse=apply(xtabs(Count~AgeGroup+Response+Gender, LongTermTable), c(1,2), sum)
+AgeResponse
+```
+
+To study the marginal association between age group and the long term symptoms, a Pearson chi-squared test was conducted. The test statistic is
+
+$$
+\chi^2 := \sum_{i=1}^{I} \sum_{j=1}^{J} \frac{(n_{ij} - \frac{n_{i+}n_{+j}}{n})^2}{\frac{n_{i+}n_{+j}}{n}}
+$$
+
+where $n_{i+}, n_{+j}$ are the marginal totals. The test statistic is asymptotically $\chi^2$ distributed with (I-1)(J-1) degrees of freedom under the null hypothesis.
+```{r}
+chisq.test(AgeResponse, correct = FALSE)
+```
+The p-value suggests that the age is related to having or not the long term symptoms. We can examine the odds ratios to describe the nature of the association:
+
+\begin{equation}
+OR_{12} = \frac{2269 \times 566}{393 \times 2777} = 1.177\\
+
+OR_{13} = \frac{2269 \times 366}{393 \times 2148} = 0.984\\
+
+OR_{23} = \frac{2777 \times 366}{566 \times 2148} = 0.836\\
+\end{equation}
+
+As we can see, the third age group of 60 years old or higher has the lowest odds of developing long term COVID-19 symptoms. 
+
+We conducted the same analysis to study the marginal association between the Gender variable and the long term symptom.
+
+```{r}
+GenderResponse=apply(xtabs(Count~Gender+Response+AgeGroup, LongTermTable), c(1,2), sum)
+GenderResponse
+```
+
+```{r}
+chisq.test(GenderResponse, correct = FALSE)
+```
+
+We noticed the same dependence nature betweeen the gender and the long term symptom. The odds ratio between male and female is:
+
+$$
+OR_{gender} = \frac{3970 \times 423}{3224 \times 902} = 0.577
+$$
+
+This indicates that males tend to have lower odds of developing long term COVID-19 symptoms than females.
+
+We now consider stratifying the table by the levels of the age group and explore again the conditional association between gender and the long term symptom. We calculate the odds ratio for each level of the age group:
+
+```{r}
+LongTermTable%>%pivot_wider(values_from = Count, names_from = Response)%>%
+  group_by(AgeGroup) %>%
+  summarise(Conditional_OddsRatio = (Yes[2] * No[1])/(Yes[1] * No[2]))  
+```
+
+We use the Mantel-Hazenel test to test the conditional independence between the gender variable and the long term symptom conditional on the age group:
+
+$$
+H_0:p_{ij|k}=p_{i|k}p_{j|k}, \forall i,j, \text{ given a specific level k}
+$$
+This is equivalent to the statement that all conditional odds ratios given k are equal to 1, i.e.,
+
+$$
+H_0: OR_{XY(1)} = OR_{XY(1)} = ... = OR_{XY(k)} = 1
+$$
+where X represents the Gender variable, Y represents the long term symptom variable, and k represents the levels of the AgeGroup variable.
+
+```{r}
+# Convert data frame to 3D array
+LongTermArray=xtabs(Count~Gender+Response+AgeGroup, LongTermTable)
+LongTermArray
+
+# Perform Mantel-Haenszel test
+mantelhaen.test(LongTermArray)
+```
+
+We again observed that there was strong evidence to reject the null and suggest a dependence relationship among gender and long term symptom conditional on age. Moreover, males have lower odds of developing long term COVID-19 symptoms than females. 
+
+## Prevalence Modeling
+We then studied the relationship between the prevelance of disease and some other important factors. Due to the large size of the number of variables in the Cycle 1 survery result, we only selected the ones that we were mostly interested in. We believed that the selected variables were most likely significant in modeling the prevalence before attempting to look into the data. After all, a variable showing the type of dwelling might be less likely to affect the prevalence than a variable showing the vaccination status. Therefore, we only chose those variables that can have a direct impact on the prevalence. Moreover, variables could have invalid categories like "Valid skip" or "Not stated". These categories were present due to regulation and law reinforcement, and the survey is designed entirely voluntary. Therefore these categories were treated by us as invalid data. Any variables with a high percentage of missing values (>25%) were dropped. 
+
+We gave a data definition in Table 2.3.1 below. 
+
+```{r}
+RegressionData<-CCAHS%>%
+  mutate(across(starts_with("HB_20"), 
+                ~case_when(.==1~"Always",.==2~"Often",.==3~"Occasionally",.==4~"Never",.default = NA)))%>%
+  mutate(across(starts_with("HB_20"), ~factor(., levels = c("Never", "Occasionally","Often", "Always"))))%>%
+  mutate(Covid_Status=case_when(CS_35==1 ~ 1, CS_35==2 ~ 0, .default = NA),
+         chronic=case_when(CHRGNUM==0 ~ "No", CHRGNUM==9 ~ NA, .default = "Yes"),
+         DirectContact=case_when(RA_10==2 ~ "Yes", RA_10==9 ~ NA, .default = "No"),
+         Smoke=case_when(RA_35==1 ~ "Yes", RA_35==2 ~ "No", .default = NA),
+         FluVac=case_when(FLU_05==1~"Yes",FLU_05==2~"No",.default = NA),
+         VaccineStatus=case_when(VXD05==1 ~ "Yes", VXD05==2 ~ "No", .default = NA),
+         Sex=case_when(GDR_05==9~NA, .default = GDR_05),
+         Age=case_when(AGEGRP==9~NA,.default = AGEGRP),
+         NumHouse=case_when(HHCDV==9~NA,.default = HHCDV),
+         AntiBodyResult=factor(case_when(LABDCOVD==1~"Positive",LABDCOVD==2~"Negative",LABDCOVD==3~"Indeterminate"), levels = c("Positive", "Negative", "Indeterminate")))%>%
+  mutate(across(c(chronic, DirectContact, Smoke, FluVac, VaccineStatus), ~factor(., levels = c("No", "Yes"))))%>%
+  mutate(across(c(Sex,Age,NumHouse), factor))%>%select(starts_with("HB_20"), Covid_Status:AntiBodyResult)
+
+colnames(RegressionData) = c("WashHand","WearMaskIn","WearMaskOut","Keep2m","AvoidCrwd","WFH","Delivery","LimContact",
+                             "IsoMyself","IsoOthers","Covid_Status", "chronic", "DirectContact", "Smoke", "FluVac",
+                             "VaccineStatus","Sex","Age","NumHouse","AntiBodyResult")
+
+RegressionData=RegressionData%>%select(!c(WFH, IsoOthers))
+
+DataDict<-data.frame(
+  Variables=colnames(RegressionData),   
+  Type=sapply(RegressionData, function(x) class(x)),
+  Example=sapply(RegressionData, function(x) paste(as.character(head(unique(x),2)), collapse = ", ")),
+  Number.Unique=sapply(RegressionData, function(x) length(unique(x))),
+  PctMissing=sapply(RegressionData, function(x) paste0(round(sum(is.na(x))/length(x), 4)*100,"%")),
+  Comment=c("Wash hands often",
+            "Wear a mask indoors",
+            "Wear a mask outdoors",
+            "Keep 2m apart",
+            "Avoid crowds",
+            "Use delivery services or pickup",
+            "Limit contact with people at higher risk",
+            "Self-isolate to protect myself",
+            "Had the respondent ever had a positive test result?",
+            "Had the respondent reported having chronic condition?",
+            "In the last six months, had the respondent worked in direct contact with people",
+            "Does the respondent currently smoke tobacco?",
+            "In the past 12 months, have you had a seasonal flu vaccine?",
+            "Received at least one vaccine dose against COVID-19?",
+            "Sex: 1 - Male, 2 - Female",
+            "Age group: 1-19, 20-39, 40-59, 60 and older",
+            "Number of people living in household: 1, 2, 3, and 4 or more",
+            "The overall interpretation of the laboratory result is that if 0 of 3 antigen tests was positive, the respondent had an overall negative test for antibodies against SARS-CoV-2, if 1 of 3 antigen tests was positive, the respondent had an overall indeterminate test for antibodies against SARS-CoV-2, and if 2 or more of 3 antigen tests were positive, the respondent had an overall positive test for antibodies against SARS-CoV-2.")
+)
+DataDict%>%gt()%>%tab_header(
+  title = "Table 2.3.1: COVID Status Data Definition")
+```
+
+To fully understand the relationship between the response variable Covid_Status with other predictors, we fitted logistic models in Section 3.3 and provided additional inferences. 
+
+# Result
+
+
+## Prevalence Modeling
+
+The hypothesis we were mostly interested in was:
+
+\begin{gather*}
+H_0: \beta_j = 0 \\
+H_0: \beta_j \neq 0
+\end{gather*}
+
+for each coefficient related to its corresponding covariate. In other words, we wanted to describe the relationship between the COVID status of a participant and other predictors. 
+
+We initialize the main-effects model with the least BIC value using backward elimination from the saturated model:
+
+```{r}
+Xy<-RegressionData%>%na.omit()
+full_model=glm(Covid_Status ~ ., family=binomial, data = Xy)
+step(full_model, direction="backward", trace = FALSE, k=log(nrow(Xy)))
+```
+We saw that the preliminary test suggested that the COVID status is strongly related to vaccine status and antibody result. 
+
+We may test the following hypothesis to see if an interaction term is needed: 
+$$
+H_0: \text{the reduced model: Covid_Status ~ VaccineStatus+AntiBodyResult}\\
+H_1: \text{the saturated model: Covid_Status ~ VaccineStatus*AntiBodyResult}
+$$
+Using the likelihood ratio test statistic $\Lambda := -2(l_0 - l_1)$ where $l_1$ is the loglikelihood of the full model and $l_0$ is the one of the reduced model. Under the null hypothesis, $\Lambda$  is asymptotically $\chi^2(d_1 - d_0)$ distributed where $d_1$ is the degree of freedom under the full model and $d_0$ is the one under the reduced model. Therefore we used the LRT to examine the significance of each single predictor as well as the interaction term. 
+```{r}
+df=Xy%>%group_by(VaccineStatus, AntiBodyResult)%>%summarise(Count=sum(Covid_Status), Total=n(), .groups = 'drop')
+
+model0=glm(cbind(Count, Total-Count) ~1, family=binomial, data = df)
+model1=glm(cbind(Count, Total-Count) ~ VaccineStatus, family=binomial, data = df)
+model2=glm(cbind(Count, Total-Count) ~ AntiBodyResult, family=binomial, data = df)
+model3=glm(cbind(Count, Total-Count) ~ VaccineStatus + AntiBodyResult, family=binomial, data = df)
+model4=glm(cbind(Count, Total-Count) ~ VaccineStatus * AntiBodyResult, family=binomial, data = df)
+
+anova(model0, model1, test="LRT")
+anova(model0, model2, test="LRT")
+anova(model0, model3, test="LRT")
+anova(model1, model3, test="LRT")
+anova(model2, model3, test="LRT")
+anova(model3, model4, test="LRT")
+```
+We confirmed that the interaction term wasn't statistically significant and that the COVID status was related to the vaccine status and the antibody result:
+
+```{r}
+summary(model3)
+```
+
+We obtained the parameter coefficients with confidence intervals:
+
+```{r}
+data.frame(Estimate=model3$coefficients)%>%cbind(confint.default(model3))
+```
+
+We interpreted the coefficients as such: the exponent of intercept $e^{\beta_0}$ is the odds of getting a positive COVID status when all other predictors are set to their base level. The exponent of all other coefficients $e^{\beta_j}$ is the odds ratio of getting a positive COVID status for a 1 unit change in the corresponding predictor j. Negative values of these coefficient estimates indicate that an inverse relationship between the prevalence of the disease and the variables.
+
+When using standardized Pearson residual plot to do model diagnostic, we see unequal variance possibly due to overdispersion. In addition the standardized residuals against the linear predictors have a trend and all points above 0, which indicates model misspecification. However adding other covariates doesn't not provide better fits. In the next section we demonstrated the use of a neural network to deal with situations like this when many predictors are present.
+```{r}
+par(mfrow = c(2, 2))
+plot(model3)
+```
+
+
+## Neural Networks
+
+Artificial Neural Networks (ANNs) are computational models inspired by the structure and functioning of the human brain, designed to mimic the way biological neural networks process information. These networks consist of interconnected nodes, or artificial neurons, organized into layers: an input layer, one or more hidden layers, and an output layer.
+
+The fundamental building block of an artificial neuron is a mathematical function that takes weighted inputs, applies an activation function, and produces an output. Through a process of training, ANNs can be constructed to map input data to desired output, making them particularly adept at tasks such as classification, regression, and pattern recognition.
+
+While there are many types of ANNs been developed, the original concept can go back to 1800s when theories of linear regression was established [@Hist]. From the basic feedforward neural network (FNN) that we demonstrated in this project, to the more complicated recurrent neural network (RNN), the types of neural networks depend on their architectures. For example, an FNN can have many hidden layers with neurons fully connect to each other, and information moves only one direction; it never goes backwards, whereas RNN can have bi-directional flow. Also radial-based networks use a radial function as the activation function. Here we mainly focus on FNN with a single hidden layer. Implementation of this simple neural network involves two key processes: forward propagation and backward propagation. In forward propagation, the input data is passed through the network, and the model produces an output. During backward propagation, the network learns by adjusting its internal parameters (weights and biases) based on the error between the predicted output and the actual target values. This iterative learning process allows the network to improve its performance over time.
+
+Neural networks are especially powerful for solving complex problems, and their versatility has led to widespread use in various domains, including image and speech recognition, natural language processing, and many other applications.
+
+an ANN mainly consists of three major components: the inputs, the weights and biases, and the activation function. Together they form a neuron that takes the input information, process it and returns an output based on the activation as a form of threshold. The input forms the first layer of our neural network, often referred as the input layer. Similarly, the output layer consists of neurons that generate outputs. Any additional layers between the input and output layer are referred as the hidden layers. The input data are sent to the neurons in the next hidden layer. The neurons process the input as explained in the paper published by Catherine Higham and Desmond Higham [@DeepLearning].
+
+Assuming our input data $x\in \mathbb{R}^2$, then the neurons take a linear transformation of the data and apply the activation function to it:
+
+$$
+\sigma(W^{[2]}x + b^{[2]})
+$$
+where $\sigma(z)$ is the activation function and $W^{[2]}$ and $b^{[2]}$ are the weights and bias matrix for the second layer respectively. Since one can have many neurons in the hidden layer, assuming $n_l$ number of neurons in the current layer and $n_{l-1}$ number of neurons at the previous layer, then $W$ is an $n_l \times n_{l-1}$ matrix, and $b$ is a $n_{l-1} \times 1$ vector. Therefore assuming we have two neurons in the second layer, then we have the output as:
+
+\begin{gather*}
+\sigma(W^{[2]}x + b^{[2]}) \in \mathbb{R}^{2 \times 1}\\
+W^{[2]} \in \mathbb{R}^{2 \times 2}, ~ b^{[2]} \in \mathbb{R}^{2 \times 1}
+\end{gather*}
+
+Similarly, if one has a third layer with three neurons, the output becomes:
+
+\begin{gather*}
+\sigma(W^{[3]} \sigma(W^{[2]}x + b^{[2]}) + b^{[3]}) \in \mathbb{R}^{3 \times 1}\\
+W^{[3]} \in \mathbb{R}^{3 \times 2}, ~ b^{[3]} \in \mathbb{R}^{3 \times 1}
+\end{gather*}
+
+Therefore, the output is actually a function of all the weights and biases matrices. We can define the output of neurons in each layer as the following:
+
+\begin{gather*}
+a^{[1]} := x \in \mathbb{R}^{n_1}\\
+a^{[l]} := \sigma(W^{[l]} \cdot a^{[l-1]} + b^{[l]}) \in \mathbb{R}^{n_l},~ \forall l=2,3,...,L
+\end{gather*}
+
+If we further defined the loss function:
+
+$$
+Cost=\frac{1}{2N}\sum_{i=1}^{N}(y_i - a_i^{[L]})^2
+$$
+then the goal is to minimize the loss with respect to the weights and biases. Finding the optimal solution of the weights and biases is generally referred as model learning. 
+
+To find the optimal solution required computational methods. The classical approach is to use gradient descent:
+
+suppose we have the parameter of interest as $p\in \mathbb{R}^d$, then for $t={0,1,2...}$ we have:
+$$
+p_{t+1} = p_t -\eta \cdot \nabla Cost(p_t)
+$$
+where $\eta$ is often referred as the learning rate. 
+
+One of the biggest advantages of gradient descent is that one is not constrained by dimensionality. However the algorithm can be stuck in a saddle point. In addition, one must know how to calculate $\nabla Cost(p_t)$ and a good choice of $\eta$ is often required to avoid divergence of iterations. One can see in the Simulation section that our choice of $\eta$ was 0.9. Finding the optimal learning rate is beyond our scope, however the article[@LearningRate] explained that "Generally, a large learning rate allows the model to learn faster, at the cost of arriving on a sub-optimal final set of weights. A smaller learning rate may allow the model to learn a more optimal or even globally optimal set of weights but may take significantly longer to train.".
+
+The calculation of the derivatives of the lost function with respect to weights and biases is not trivial. One often has to work on cumbersome vector calculus[@MatrixCalc]. Given the mean squared error loss and the sigmoid activation function $\sigma(z):= \frac{1}{1+e^{-z}}$, the authors of the paper[@DeepLearning] have provided the solutions:
+
+Define $\delta^{[l]}:=\frac{\partial C}{\partial z_i^{[l]}},~ 1\leq i \leq n_l,~2\leq l \leq L$, and $D^{[l]}:=diag(\sigma^{'}(z_i^{[l]})) \in \mathbb{R}^{n_l \times n_l}$ then
+
+\begin{align}
+\delta^{[L]}:=D^{[L]} \cdot (a^{[L]}-y)  \tag{eq1}\\
+\delta^{[l]}:=D^{[l]} \cdot (W^{[l+1]})^T \cdot \delta^{[l+1]}  \tag{eq2}\\
+\frac{\partial C}{\partial w_{ij}^{[l]}}:=\delta_i^{[l]}\cdot a_j^{[l-1]}  \tag{eq3}\\
+\frac{\partial C}{\partial b_{i}^{[l]}}:=\delta_i^{[l]}  \tag{eq4}\\
+\end{align}
+
+As one may have noticed, we first calculate $a^L$ from a forward pass, known as the forward propagation, and then calculate $\delta^{[L]}$ first and then $\delta^{[l]},~l=L-1, L-2,....$ as well as the partial derivatives from a backward pass, known as the backward propagation.
+
+Artificial neural networks have been developed to solve some of the typical problems that we can find in categorical analysis. For example, one can apply a logistic regression model to a binary data, but can also use neural network as a non-parametric model to achieve similar result.
+
+```{r}
+df <- lapply(Xy, function(x) {
+  if (is.factor(x)) as.numeric(x) else x
+})%>%do.call(cbind, . )%>%as_tibble()%>%transmute(x1=VaccineStatus, x2=AntiBodyResult, y=Covid_Status)
+
+train_data <- df[1:1462, ]
+test_data <- df[1463:1828, ]
+
+test<-NeuralNet$new(data=train_data, hidden_neurons=40, num_iteration=5000, learning_rate=0.95)
+
+plot_ly(y=test$output$cost_hist, type = "scatter", mode="lines",line = list(width = 1))%>%
+  layout(title="Figure 3: Loss History of Feedforward Neural Network",
+         xaxis=list(title="Iteration"),
+         yaxis=list(title="Mean Squared Error"))
+
+
+y_pred<-test$makePrediction(testdata=test_data, 40)
+
+df_pred<-data.frame(x1=test_data$x1, x2=test_data$x2, y_pred=as.numeric(y_pred), y_true=test_data$y)
+```
+
+The confusion matrix gives the TN, FN, FP, and TP values respectively.
+```{r}
+# Compute confusion matrix and format percentages
+conf_matrix <- as.matrix(table(df_pred$y_pred, df_pred$y_true) / nrow(df_pred) * 100) %>%
+  apply(c(1, 2), function(x) sprintf('%.2f%%', x))
+
+# Add row and column names
+rownames(conf_matrix) <- paste("Predicted", rownames(conf_matrix))
+colnames(conf_matrix) <- paste("Actual", colnames(conf_matrix))
+
+# Display nicely formatted table with kableExtra
+kable(conf_matrix, format = "html", caption = "Confusion Matrix") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+Model goodness-of-fit can be done through the confusion matrix to examine measures of classification:
+$$Accuracy=\frac{TP+TN}{TP+TN+FP+FN}$$
+$$Recall=\frac{TP}{TP+FN}$$
+$$Precision=\frac{TP}{TP+FP}$$
+$$F1\ Score=2\times\frac{Precision\times Recall}{Precision+Recall}$$
+
+# Discussion
+
+## Long-term Impact
+
+Based on the results from section 3.2, The Chi-squared tests revealed statistically significant associations between age groups and the occurrence of long-term COVID-19 symptoms within each sex category and between sexes within each age group. The Odds Ratios consistently showed that females are more likely than males to report long-term COVID-19 symptoms in all age groups.This disparity in the likelihood of symptoms appears to increase with age, with the oldest age group (Ages 65 and over) showing the highest Odds Ratio.
+
+Our findings resonate with several clinical studies that have suggested gender difference in the impact of long_COVID-19 syndrome.Specifically, the higher likelihood of long-term symptoms in females is consistent with public health researches that women might experience COVID-19 differently than men.[@Bai2021-vb] However our study is based on aggregated data focusing primarily on the association of sex and age with long-term COVID-19 symptoms. While this provides valuable insights, the data does not include individual patient states that could influence the findings. Moreover, The nature of the data and the analytical methods used (Chi-squared tests and Odds Ratios) are effective for identifying associations but do not establish causation. 
+
+Further studies involving more detailed data should aim to uncover the biological, social, and behavioral mechanisms driving the observed gender differences in long-term COVID-19 symptoms. Some study[@Juszko2022-oq] suggests that psychological factors also have correlation in both women and men with self-reported health after COVID-19. The study clearly indicates a significant gender disparity in the mental health impact of COVID-19 during the recuperation period.
+
+## Prevalence Modeling
+
+From Section 3.3 we have found that the odds ratio of COVID-19 was related to two covariates: the vaccination status and the antibody presented in blood. Specifically, we interpreted the coefficients as the log-odds for its corresponding covariate. 
+
+$$
+\ln{OR}=\beta_j, \quad OR:=\frac{p_2(1-p_1)}{p_1(1-p_2)}
+$$
+
+In other words, $e^{\beta_j}$ is the marginal increase/decrease in the odds for a on-unit increase/decrease in the covariate, assuming all other covariates held constant. On the other hand, the constant coefficient $\beta_0$ is interpreted as the log-odds $\ln{(\frac{p_1}{1-p_1})}$ with all covariates unchanged. From our summary Table 3.3.6 one can see that the coefficient for the vaccine status was negative, indicating that the odds of having a positive COVID test decreases if vaccine was given. This result wasn't surprising that the use of vaccines has so far helped the humanity combat this virus. The coefficient for the indeterminate antibody result was positive, and the one for the positive antibody result was even higher. We must point out that one needs to carefully interpret this result. It meant that the odds of getting a positive COVID test is positively correlated with the result of an antibody test. The more positive the antibody test is, the higher the odds of having a positive COVID test as well. However, antibody test and the COVID-19 diagnostic test are not the same thing in the explainations provided by FDA [@Antibody]. The antibody test does not detect the virus. Rather, it merely tells if a person may have had a PRIOR infection, thus it does not reflect if the person is currently infected or not. In addition, the antibody test could show if a person has been vaccinated or not, but in general an antibody test may not detect the kind of antibodies created by vaccines, therefore it depends on the type of antibody test performed. From our result we were only able to say that there was a positive relationship between the COVID diagnostic test and the antibody test, which was not surprising because in order to show positive in an antibody test, one must have had COVID to begin with. This information may be useful, for example, that one of the tests is economically more affordable and can be used as a preliminary screening method.
+
+From the second model fitting for preventative behaviours, we found that only washing hand was showing a negative effect on the odds of getting COVID. We weren't able to draw any conclusion for other preventative behaviours, but we thought it was inevitably hard to find a relationship between the COVID status and those behaviours because people may not answer the questionnaire accurately. People might find difficult to distinguish the boundary between wearing mask often and always. People can even falsely answer that they keep a distance of 2 metres or more but in reality they have not done so. The resulting answers for the survey therefore may not be as reliable. Thus we thought it is generally difficult to accurately describe the relationship between prevalence of disease and preventative behaviour. Researchers have to design experiments and find ways to quantify the behaviour in order to have more reliable outcomes. 
+
+# Conclusion
+In Mortality section, we found that there exist significant difference in  probability of death caused by COVID-19 across years. 2022 has the relative risk greater than 1 and odds ratio less than 1, which indicate the negative association, indicating an decreased likelihood of the in probability in COVID-19 death in these years.Given the change in the demographic of the affected population, it is essential to acknowledge the possibility that the rise in mortality among older individuals in the later stages of the epidemic could be attributed to complications rather than the direct impact of COVID-19 itself. In future research, it would be valuable to explore the influence of complications on the death after infections.
+
+we can conclude that there is a significant association between age and gender with the occurrence of long-term COVID-19 symptoms. Notably, females across all age groups, especially those aged 65 and over, are more likely to report these symptoms compared to males.However, it's important to recognize that our study, while highlighting crucial associations, does not delve into the causal mechanisms due to its reliance on aggregated data. This limitation underscores the need for further research with more comprehensive data to explore the underlying biological, social, and psychological factors contributing to these observed differences in long-term COVID-19 symptoms.
+
+We found in Prevalence Modeling section that the COVID status is negatively associated with the vaccination status, indicating that vaccines was a significant factor to lower the prevalence of the virus. We also found but not surprising that the antibody test result was positively related to the COVID status. In addition, we did confirm that washing hands can result in a negative influence on the prevalence of COVID, but we could not find the same conclusion for other preventative behaviours.
+
